@@ -1,6 +1,9 @@
-# Server-driven Django + HTMX starter
-
-This boilerplate keeps Django as the single source of truth while layering HTMX for transport, Tailwind/Preline for UI, and Alpine.js for light client state. Vite builds static assets that Django serves; Storybook documents HTML-first components. Docker images are production-ready with Gunicorn and WhiteNoise.
+## Scope & Principles
+- Internal finance tracking (not tax/accounting compliant).
+- Single-entry only; upgrade-ready for double-entry later.
+- Django is the source of truth. No balances stored; always derived.
+- HTMX + Alpine + Preline for UI; Heroicons for icons.
+- SQLite (max 5 users). WAL, serialized CSV imports, short transactions.
 
 ## Stack
 - Django backend with `core` example app (models, permissions, HTMX views, server-side validation)

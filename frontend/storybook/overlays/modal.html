@@ -1,55 +1,59 @@
-<section class="space-y-4 p-4 text-slate-800">
+<section class="space-y-4 p-4 text-slate-800" x-data="{ confirmOpen: false, infoOpen: false }">
   <h1 class="text-lg font-semibold text-slate-900">Modals</h1>
   <div class="flex flex-wrap gap-3 rounded-lg border border-slate-200 bg-white p-4">
-    <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" data-hs-overlay="#confirm-modal">
+    <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="confirmOpen = true">
       Open Confirmation
     </button>
-    <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" data-hs-overlay="#info-modal">
+    <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="infoOpen = true">
       Open Info
     </button>
   </div>
 
-  <div id="confirm-modal" class="hs-overlay hidden fixed inset-0 z-50 overflow-y-auto" tabindex="-1">
-    <div class="hs-overlay-open:opacity-100 opacity-0 transition duration-200 ease-out">
-      <div class="flex min-h-full items-start justify-center p-4">
-        <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div class="flex items-center justify-between border-b border-slate-200 p-4">
-            <h2 class="text-sm font-medium text-slate-700">Confirm Delete</h2>
-            <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" data-hs-overlay="#confirm-modal" aria-label="Close">
-              ✕
-            </button>
-          </div>
-          <div class="space-y-2 p-4 text-sm text-slate-800">
-            <p>This action cannot be undone.</p>
-            <p class="text-xs text-slate-500">All related transactions will be removed.</p>
-          </div>
-          <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
-            <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" data-hs-overlay="#confirm-modal">Cancel</button>
-            <button class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">Delete</button>
-          </div>
-        </div>
+  <!-- Confirmation modal -->
+  <div
+    x-cloak
+    x-show="confirmOpen"
+    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @keydown.escape.window="confirmOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Confirm Delete</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="confirmOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="space-y-2 p-4 text-sm text-slate-800">
+        <p>This action cannot be undone.</p>
+        <p class="text-xs text-slate-500">All related transactions will be removed.</p>
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="confirmOpen = false">Cancel</button>
+        <button class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700" @click="confirmOpen = false">Delete</button>
       </div>
     </div>
   </div>
 
-  <div id="info-modal" class="hs-overlay hidden fixed inset-0 z-50 overflow-y-auto" tabindex="-1">
-    <div class="hs-overlay-open:opacity-100 opacity-0 transition duration-200 ease-out">
-      <div class="flex min-h-full items-start justify-center p-4">
-        <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div class="flex items-center justify-between border-b border-slate-200 p-4">
-            <h2 class="text-sm font-medium text-slate-700">Info</h2>
-            <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" data-hs-overlay="#info-modal" aria-label="Close">
-              ✕
-            </button>
-          </div>
-          <div class="space-y-2 p-4 text-sm text-slate-800">
-            <p>All balances are updated overnight at 02:00.</p>
-            <p class="text-xs text-slate-500">Refresh after the run completes.</p>
-          </div>
-          <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
-            <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" data-hs-overlay="#info-modal">Okay</button>
-          </div>
-        </div>
+  <!-- Info modal -->
+  <div
+    x-cloak
+    x-show="infoOpen"
+    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @keydown.escape.window="infoOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Info</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="infoOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="space-y-2 p-4 text-sm text-slate-800">
+        <p>All balances are updated overnight at 02:00.</p>
+        <p class="text-xs text-slate-500">Refresh after the run completes.</p>
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="infoOpen = false">Okay</button>
       </div>
     </div>
   </div>

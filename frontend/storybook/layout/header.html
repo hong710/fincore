@@ -1,0 +1,26 @@
+<!-- Reusable top header: logo, help trigger, user dropdown -->
+<header class="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-indigo-600 px-4 shadow-sm text-white">
+  <div class="flex items-center gap-3">
+    <a href="#" class="flex items-center gap-2">
+      <div class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-xs font-semibold text-indigo-600 shadow-sm">FC</div>
+      <span class="text-sm font-semibold text-white">FINCORE</span>
+    </a>
+  </div>
+  <div class="flex items-center gap-3">
+    <button type="button" class="inline-flex h-10 items-center gap-1 rounded-md border border-white/30 bg-white/10 px-3 text-xs font-medium text-white shadow-sm hover:bg-white/20" @click="docsOpen = !docsOpen">
+      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6m0 4h.01M5.25 4.5h13.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H5.25a.75.75 0 0 1-.75-.75V5.25a.75.75 0 0 1 .75-.75Z"/></svg>
+      Help
+    </button>
+    <div class="hs-dropdown relative inline-flex [--placement:bottom-right]">
+      <button id="user-menu" type="button" class="hs-dropdown-toggle inline-flex h-10 items-center gap-2 rounded-md border border-white/30 bg-white/10 px-3 text-xs font-medium text-white shadow-sm hover:bg-white/20">
+        <span class="h-8 w-8 rounded-full bg-white/30"></span>
+        <span>J. Admin</span>
+        <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="hs-dropdown-menu hidden min-w-[160px] divide-y divide-slate-100 rounded-md border border-slate-200 bg-white p-1 shadow-md" aria-labelledby="user-menu">
+        <a class="block rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" href="#">Account</a>
+        <a class="block rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" href="#">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>

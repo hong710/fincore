@@ -4,4 +4,10 @@ export default {
   title: "Overlays/Modal",
 };
 
-export const Modal = () => template;
+export const Modal = () => {
+  return `
+    <div x-data="{}">
+      ${template}
+    </div>
+  `;
+};

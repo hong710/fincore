@@ -1,5 +1,13 @@
 # FINCORE Domain — Design Notes (Single-Entry Finance Tracker)
 
+## Stack
+- Django backend with `core` example app (models, permissions, HTMX views, server-side validation)
+- HTMX for partial HTML requests; Alpine.js for UI-only validation/state; Preline UI for behaviors like modals
+- Tailwind CSS compiled via Vite; assets served by Django (`STATIC_URL=/static/`, Vite outputs to `backend/static/app`)
+- Storybook (HTML + Vite) for component previews
+- Dockerfile + docker-compose (under `docker/`) for production-like runs (Gunicorn, Postgres)
+- Icons: Heroicons (SVG-only, served via Django static files and rendered via core UI components)
+
 ## Scope & Principles
 - Internal finance tracking (not tax/accounting compliant).
 - Single-entry only; upgrade-ready for double-entry later.

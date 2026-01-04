@@ -14,7 +14,7 @@
   {% block head_extra %}{% endblock %}
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <section class="flex min-h-screen flex-col overflow-hidden bg-slate-50" x-data="{ sidebarOpen: true, docsOpen: false, salesOpen: false, expenseOpen: false, reportOpen: false }">
+  <section class="flex h-screen min-h-screen flex-col overflow-hidden bg-slate-50" x-data="{ sidebarOpen: true, docsOpen: false, salesOpen: false, expenseOpen: false, reportOpen: false }">
     <!-- Header -->
     <header class="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-indigo-600 px-4 shadow-sm text-white">
       <div class="flex items-center gap-3">
@@ -42,16 +42,16 @@
       </div>
     </header>
 
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden min-h-0">
       <!-- Sidebar -->
-      <aside class="relative flex h-full flex-col border-r border-slate-200 bg-white transition-all duration-200" :class="sidebarOpen ? 'w-60' : 'w-16'">
+      <aside class="relative flex h-full min-h-0 flex-col border-r border-slate-200 bg-white transition-all duration-200" :class="sidebarOpen ? 'w-60' : 'w-16'">
         <div class="flex items-center justify-between border-b border-slate-200 px-3 py-3">
           <span class="text-xs font-medium text-slate-700" x-show="sidebarOpen">Navigation</span>
           <button type="button" class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 shadow-sm hover:bg-slate-50" @click="sidebarOpen = !sidebarOpen">
             <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 19.5-7.5-7.5 7.5-7.5"/></svg>
           </button>
         </div>
-        <nav class="flex-1 space-y-1 p-3 text-sm">
+        <nav class="flex-1 space-y-1 overflow-y-auto p-3 text-sm">
           <a href="#" class="flex items-center gap-2 rounded-md px-3 py-2 font-medium text-indigo-700 bg-indigo-50">
             <svg class="h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h12A2.25 2.25 0 0 1 20.25 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6Z" />
@@ -64,6 +64,13 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9.75 12 3l9 6.75M4.5 10.5h15M6 21h12M6.75 10.5v10.5m3-10.5v10.5m3-10.5v10.5m3-10.5v10.5" />
             </svg>
             <span x-show="sidebarOpen">Transactions</span>
+          </a>
+          <a href="{% url 'fincore:account_list' %}" class="flex items-center gap-2 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-50">
+            <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6.75h16.5a.75.75 0 0 1 .75.75v9a.75.75 0 0 1-.75.75H3.75a.75.75 0 0 1-.75-.75v-9a.75.75 0 0 1 .75-.75Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 10.5a2.25 2.25 0 1 0 0 4.5h9a2.25 2.25 0 1 0 0-4.5h-9Z" />
+            </svg>
+            <span x-show="sidebarOpen">Accounts</span>
           </a>
           <div class="space-y-1">
             <button type="button" class="flex w-full items-center justify-between rounded-md px-3 py-2 text-slate-700 hover:bg-slate-50" @click="salesOpen = !salesOpen">

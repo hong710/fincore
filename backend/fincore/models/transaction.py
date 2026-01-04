@@ -11,12 +11,14 @@ class Transaction(models.Model):
     - income: amount > 0, category required
     - expense: amount < 0, category required
     - transfer: category null, transfer_group required, paired to sum zero
+    - opening: system initialization; not real income/expense; excluded from P&L
     """
 
     KIND_CHOICES = [
         ("income", "Income"),
         ("expense", "Expense"),
         ("transfer", "Transfer"),
+        ("opening", "Opening"),
     ]
 
     SOURCE_CHOICES = [
@@ -28,6 +30,7 @@ class Transaction(models.Model):
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="transactions")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     kind = models.CharField(max_length=8, choices=KIND_CHOICES)
+    payee = models.CharField(max_length=255, blank=True, help_text="Other party involved; free text; direction determined by kind/amount.")
     category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     transfer_group = models.ForeignKey(TransferGroup, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     description = models.CharField(max_length=255, blank=True)

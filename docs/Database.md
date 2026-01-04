@@ -3,10 +3,12 @@
 ## Entities
 - **Account**: Where money lives. Balance is always derived.
 - **Category**: For income/expense only. Has `kind` (`income` | `expense`). Transfers never use categories.
-- **Transaction**: Core single-entry record (date, account, amount, kind, category?, transfer_group?, description, source, created_at).
+- **Transaction**: Core single-entry record (date, account, amount, kind, payee?, category?, transfer_group?, description, source, created_at).
   - income  → amount > 0, category required
   - expense → amount < 0, category required
   - transfer → category NULL, transfer_group required
+  - opening → system initialization; excluded from P&L; payee optional
+  - payee is free text (other party); direction is determined by kind/amount, not payee
 - **TransferGroup**: Pairs transfer transactions; sum per group must be zero.
 - **ImportBatch**: One CSV upload; status `pending|validated|imported|failed`.
 - **ImportRow**: Staged CSV rows with mapped fields + validation errors; never touch Transaction until batch commits.
@@ -35,13 +37,14 @@ Details:
 - **transfer_group**
   - id PK, reference (unique), created_at
 - **transaction**
-  - id PK, date, account_id FK, amount (signed), kind (`income|expense|transfer`),
-    category_id FK NULL, transfer_group_id FK NULL, description, source (`manual|csv`),
-    created_at
+  - id PK, date, account_id FK, amount (signed), kind (`income|expense|transfer|opening`),
+    payee (text, optional), category_id FK NULL, transfer_group_id FK NULL, description,
+    source (`manual|csv`), created_at
   - business rules (enforced in validation/service layer):
     - income: amount > 0 AND category_id NOT NULL
     - expense: amount < 0 AND category_id NOT NULL
     - transfer: category_id NULL AND transfer_group_id NOT NULL
+    - opening: initialization; excluded from P&L; payee optional
     - each transfer_group sums to zero (paired +/–)
 - **import_batch**
   - id PK, filename, status (`pending|validated|imported|failed`), error_message?, uploaded_at

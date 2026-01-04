@@ -94,7 +94,7 @@
               </th>
               <th class="py-1.5 px-3 text-left align-top">
                 <div class="flex items-center gap-2">
-                  <span class="text-sm text-slate-700">Categorize or Match</span>
+                  <span class="text-sm text-slate-700">Categories</span>
                   <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
                     <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('category') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
                       <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('category') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
