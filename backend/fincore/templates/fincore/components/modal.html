@@ -1,0 +1,18 @@
+<div id="{{ modal_id }}" class="hs-overlay hidden fixed inset-0 z-50 overflow-y-auto" tabindex="-1">
+    <div class="hs-overlay-open:opacity-100 opacity-0 transition duration-200 ease-out">
+        <div class="flex min-h-full items-start justify-center p-4">
+            <div class="w-full {{ modal_width|default:'max-w-md' }} rounded-lg border border-slate-200 bg-white shadow-lg">
+                <div class="flex items-center justify-between border-b border-slate-200 p-4">
+                    <h2 class="text-sm font-medium text-slate-700">{{ title|default:"Modal" }}</h2>
+                    <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" data-hs-overlay="#{{ modal_id }}" aria-label="Close">✕</button>
+                </div>
+                <div class="space-y-2 p-4 text-sm text-slate-800">
+                    {% block modal_body %}{% endblock %}
+                </div>
+                <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+                    {% block modal_footer %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

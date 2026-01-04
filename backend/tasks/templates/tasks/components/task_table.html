@@ -1,0 +1,22 @@
+<div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="min-w-full divide-y divide-slate-100">
+        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+                <th class="px-4 py-3">Title</th>
+                <th class="px-4 py-3">Description</th>
+                <th class="px-4 py-3">Priority</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3 text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="task-table-body" class="divide-y divide-slate-100">
+            {% for task in tasks %}
+                {% include "tasks/components/task_row.html" %}
+            {% empty %}
+                <tr>
+                    <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">No tasks yet. Add one to get started.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

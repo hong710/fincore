@@ -1,0 +1,17 @@
+node_modules
+frontend/node_modules
+storybook/node_modules
+backend/static/app
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+.DS_Store
+.venv
+env
+.git
+*.log
+coverage.*
+htmlcov
+.pytest_cache

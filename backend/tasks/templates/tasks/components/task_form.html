@@ -1,0 +1,64 @@
+<div id="task-form-wrapper"
+     x-data="{ title: '{{ form.title.value|default_if_none:'' }}', priority: {{ form.priority.value|default_if_none:3 }}, touched: false }"
+     class="card p-6">
+    <div class="flex items-center justify-between gap-2">
+        <div>
+            <h2 class="text-lg font-semibold">Create task</h2>
+            <p class="text-sm text-slate-500">Alpine handles UX validation; Django validates truth.</p>
+        </div>
+        <div id="task-form-spinner" class="hidden h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-800"></div>
+    </div>
+    <form class="mt-4 space-y-4"
+          hx-post="{% url 'tasks:create-task' %}"
+          hx-target="#task-form-wrapper"
+          hx-swap="outerHTML"
+          hx-indicator="#task-form-spinner"
+          @submit="touched = true">
+        <div class="space-y-1">
+            <label for="{{ form.title.id_for_label }}" class="text-sm font-medium text-slate-700">Title</label>
+            <input x-model="title"
+                   :class="title.trim().length < 3 && touched ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : ''"
+                   class="block w-full rounded-lg border-slate-200 focus:border-slate-500 focus:ring-slate-500"
+                   name="{{ form.title.html_name }}"
+                   id="{{ form.title.id_for_label }}"
+                   placeholder="Document decisions with clarity"
+                   required
+                   minlength="3" />
+            <p x-show="title.trim().length < 3 && touched" class="text-sm text-red-600">Title must be at least 3 characters.</p>
+            {% if form.title.errors %}
+                <p class="text-sm text-red-600">{{ form.title.errors|first }}</p>
+            {% endif %}
+        </div>
+        <div class="space-y-1">
+            <label for="{{ form.description.id_for_label }}" class="text-sm font-medium text-slate-700">Description</label>
+            <textarea class="block w-full rounded-lg border-slate-200 focus:border-slate-500 focus:ring-slate-500"
+                      name="{{ form.description.html_name }}"
+                      id="{{ form.description.id_for_label }}"
+                      rows="3"
+                      placeholder="Add context for your teammates">{{ form.description.value|default_if_none:'' }}</textarea>
+            {% if form.description.errors %}
+                <p class="text-sm text-red-600">{{ form.description.errors|first }}</p>
+            {% endif %}
+        </div>
+        <div class="space-y-1">
+            <label for="{{ form.priority.id_for_label }}" class="text-sm font-medium text-slate-700">Priority (1-5)</label>
+            <input x-model.number="priority"
+                   type="number"
+                   min="1" max="5"
+                   name="{{ form.priority.html_name }}"
+                   id="{{ form.priority.id_for_label }}"
+                   class="block w-32 rounded-lg border-slate-200 focus:border-slate-500 focus:ring-slate-500" />
+            <p x-show="(priority < 1 || priority > 5) && touched" class="text-sm text-red-600">Priority must be between 1 and 5.</p>
+            {% if form.priority.errors %}
+                <p class="text-sm text-red-600">{{ form.priority.errors|first }}</p>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-2">
+            <button type="submit"
+                    class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800">
+                <span>Create</span>
+            </button>
+            <span class="text-sm text-slate-500">Server-side validation remains authoritative.</span>
+        </div>
+    </form>
+</div>

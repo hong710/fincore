@@ -1,0 +1,11 @@
+{
+  "src/main.js": {
+    "file": "assets/main-CAu40nrH.js",
+    "name": "main",
+    "src": "src/main.js",
+    "isEntry": true,
+    "css": [
+      "assets/main-COaKPL_l.css"
+    ]
+  }
+}
