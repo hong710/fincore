@@ -1,4 +1,4 @@
-<section class="space-y-4 p-4 text-slate-800" x-data="{ confirmOpen: false, infoOpen: false }">
+<section class="space-y-4 p-4 text-slate-800" x-data="{ confirmOpen: false, infoOpen: false, uploadOpen: false, accountOpen: false }">
   <h1 class="text-lg font-semibold text-slate-900">Modals</h1>
   <div class="flex flex-wrap gap-3 rounded-lg border border-slate-200 bg-white p-4">
     <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="confirmOpen = true">
@@ -6,6 +6,12 @@
     </button>
     <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="infoOpen = true">
       Open Info
+    </button>
+    <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="uploadOpen = true">
+      Upload CSV (wizard)
+    </button>
+    <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="accountOpen = true">
+      New Account
     </button>
   </div>
 
@@ -57,4 +63,266 @@
       </div>
     </div>
   </div>
+
+  <!-- Upload CSV wizard modal -->
+  <div
+    x-cloak
+    x-show="uploadOpen"
+    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @keydown.escape.window="uploadOpen = false"
+    x-data="importWizard()"
+  >
+    <div x-transition.scale.origin.top class="w-full rounded-lg border border-slate-200 bg-white shadow-lg" :class="sizeClass()">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <div class="flex items-center gap-3">
+          <h2 class="text-sm font-medium text-slate-700">Upload CSV File</h2>
+          <div class="inline-flex items-center gap-1 text-[11px] text-slate-500">
+            <span>Width:</span>
+            <button type="button" class="rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50" :class="modalSize==='sm' ? 'bg-slate-100 text-slate-800' : ''" @click="modalSize='sm'">SM</button>
+            <button type="button" class="rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50" :class="modalSize==='md' ? 'bg-slate-100 text-slate-800' : ''" @click="modalSize='md'">MD</button>
+            <button type="button" class="rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50" :class="modalSize==='lg' ? 'bg-slate-100 text-slate-800' : ''" @click="modalSize='lg'">LG</button>
+          </div>
+        </div>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="uploadOpen = false; resetWizard()" aria-label="Close">✕</button>
+      </div>
+      <div class="p-4 space-y-4">
+        <div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+          <template x-for="(label, index) in steps" :key="index">
+            <div class="flex items-center gap-2">
+              <div class="flex h-6 w-6 items-center justify-center rounded-full border" :class="currentStep > index ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : currentStep === index ? 'border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-400'">
+                <span x-text="index + 1"></span>
+              </div>
+              <span x-text="label"></span>
+              <template x-if="index < steps.length - 1">
+                <span class="text-slate-300">/</span>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <!-- Step panels -->
+        <div class="rounded-md border border-slate-200 bg-slate-50 p-4" x-show="currentStep === 0">
+          <h3 class="text-sm font-semibold text-slate-800">1) Upload CSV</h3>
+          <p class="text-xs text-slate-500 mb-3">Accepted: .csv · Max 10MB.</p>
+          <input type="file" accept=".csv" class="block w-full cursor-pointer rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            @change="onFileSelect">
+          <p class="mt-2 text-xs text-slate-600" x-text="fileName ? `Selected: ${fileName}` : 'No file selected'"></p>
+        </div>
+
+        <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 1">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-slate-800">2) Column mapping</h3>
+              <p class="text-xs text-slate-500">Map exactly one column to Date, Description, Amount. Everything else → Ignore. Kind/Category/Transfer/Account mappings are forbidden.</p>
+            </div>
+            <p class="text-xs font-semibold" :class="mappingComplete() ? 'text-emerald-600' : 'text-amber-600'" x-text="mappingComplete() ? 'Ready' : 'Incomplete'"></p>
+          </div>
+          <div class="overflow-hidden rounded border border-slate-200 bg-white">
+            <table class="min-w-full text-xs">
+              <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                  <th class="px-3 py-2 text-left">CSV Column</th>
+                  <th class="px-3 py-2 text-left">Map to</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <template x-for="col in columns" :key="col">
+                  <tr>
+                    <td class="px-3 py-2 font-medium text-slate-700" x-text="col"></td>
+                    <td class="px-3 py-2">
+                      <select class="w-48 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+                        x-model="mappings[col]">
+                        <option value="ignore">Ignore</option>
+                        <option value="date">Date</option>
+                        <option value="description">Description</option>
+                        <option value="amount">Amount</option>
+                      </select>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 2">
+          <h3 class="text-sm font-semibold text-slate-800">3) Preview (first 10 rows)</h3>
+          <div class="overflow-auto rounded border border-slate-200 bg-white">
+            <table class="min-w-full text-xs">
+              <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                  <th class="px-3 py-2 text-left">Date</th>
+                  <th class="px-3 py-2 text-left">Description</th>
+                  <th class="px-3 py-2 text-left">Amount</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <template x-for="row in previewRows" :key="row.id">
+                  <tr>
+                    <td class="px-3 py-2 text-slate-800" x-text="row.date"></td>
+                    <td class="px-3 py-2 text-slate-800" x-text="row.description"></td>
+                    <td class="px-3 py-2 text-slate-800" x-text="row.amount"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 3">
+          <h3 class="text-sm font-semibold text-slate-800">4) Select account</h3>
+          <p class="text-xs text-slate-500">Required. Account type guides validation (credit_card, debit_card, bank).</p>
+          <select class="w-64 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="selectedAccount">
+            <option value="">Choose account</option>
+            <template x-for="acct in accounts" :key="acct.id">
+              <option :value="acct.id" x-text="`${acct.name} (${acct.type})`"></option>
+            </template>
+          </select>
+        </div>
+
+        <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-2" x-show="currentStep === 4">
+          <h3 class="text-sm font-semibold text-slate-800">5) Confirm import</h3>
+          <ul class="list-disc pl-5 text-xs text-slate-700 space-y-1">
+            <li>All rows will be marked imported and linked to one import batch.</li>
+            <li>Amount &lt; 0 → Expense, Amount &gt; 0 → Income.</li>
+            <li>Category and Payee will be empty; no auto-transfers or balances used.</li>
+            <li>Rollback is only allowed per import batch (never partial).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="flex items-center justify-between border-t border-slate-200 p-4">
+        <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="uploadOpen = false; resetWizard()">Cancel</button>
+        <div class="flex items-center gap-2">
+          <template x-if="currentStep < steps.length -1">
+            <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="!canNext()" @click="nextStep()">Next</button>
+          </template>
+          <template x-if="currentStep === steps.length -1">
+            <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="!canConfirm()" @click="uploadOpen=false; resetWizard()">Confirm import</button>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Account modal -->
+  <div
+    x-cloak
+    x-show="accountOpen"
+    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @keydown.escape.window="accountOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Create New Account</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="accountOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="space-y-4 p-4 text-sm text-slate-800">
+        <div class="space-y-1">
+          <label for="acc-name" class="text-sm font-medium text-slate-700">Account name *</label>
+          <input id="acc-name" type="text" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g., Operating Account">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label for="acc-type" class="text-sm font-medium text-slate-700">Type</label>
+            <select id="acc-type" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option>Checking</option>
+              <option>Savings</option>
+              <option>Credit Card</option>
+              <option>Cash</option>
+            </select>
+          </div>
+          <div class="space-y-1">
+            <label for="acc-inst" class="text-sm font-medium text-slate-700">Institution (optional)</label>
+            <input id="acc-inst" type="text" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Bank or provider name">
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="acc-active" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked>
+          <label for="acc-active" class="text-sm text-slate-700">Active (available for new transactions)</label>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="accountOpen = false">Cancel</button>
+        <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="accountOpen = false">Create Account</button>
+      </div>
+    </div>
+  </div>
 </section>
+
+<script>
+  function importWizard() {
+    const sampleRows = [
+      { id: 1, date: "2024-10-12", description: "Client Invoice", amount: "+$1,200.00" },
+      { id: 2, date: "2024-10-11", description: "Office Supplies", amount: "-$180.00" },
+      { id: 3, date: "2024-10-10", description: "Subscription", amount: "-$45.00" },
+      { id: 4, date: "2024-10-09", description: "Consulting Revenue", amount: "+$1,250.00" },
+      { id: 5, date: "2024-10-09", description: "Bank Transfer", amount: "+$500.00" },
+      { id: 6, date: "2024-10-08", description: "Travel", amount: "-$320.00" },
+      { id: 7, date: "2024-10-07", description: "Refund", amount: "+$220.00" },
+      { id: 8, date: "2024-10-06", description: "Payroll", amount: "-$1,800.00" },
+      { id: 9, date: "2024-10-05", description: "Stripe Payout", amount: "+$980.00" },
+      { id: 10, date: "2024-10-04", description: "Hosting", amount: "-$65.00" },
+    ];
+    const cols = ["Txn Date", "Details", "Amount", "Balance"];
+    const defaultMap = {};
+    cols.forEach((c) => defaultMap[c] = "ignore");
+
+    return {
+      steps: ["Upload", "Map", "Preview", "Account", "Confirm"],
+      currentStep: 0,
+      fileName: "",
+      modalSize: "md",
+      columns: cols,
+      mappings: { ...defaultMap },
+      previewRows: sampleRows,
+      accounts: [
+        { id: "acc-bank-1", name: "Operating Checking", type: "bank" },
+        { id: "acc-cc-1", name: "Corporate Card", type: "credit_card" },
+        { id: "acc-db-1", name: "Debit Card", type: "debit_card" },
+      ],
+      selectedAccount: "",
+      resetWizard() {
+        this.currentStep = 0;
+        this.fileName = "";
+        this.mappings = { ...defaultMap };
+        this.selectedAccount = "";
+        this.modalSize = "md";
+      },
+      onFileSelect(event) {
+        const file = event.target.files[0];
+        this.fileName = file ? file.name : "";
+      },
+      mappingComplete() {
+        const values = Object.values(this.mappings);
+        const hasDate = values.filter((v) => v === "date").length === 1;
+        const hasDesc = values.filter((v) => v === "description").length === 1;
+        const hasAmount = values.filter((v) => v === "amount").length === 1;
+        return hasDate && hasDesc && hasAmount;
+      },
+      canNext() {
+        if (this.currentStep === 0) return !!this.fileName;
+        if (this.currentStep === 1) return this.mappingComplete();
+        if (this.currentStep === 3) return !!this.selectedAccount;
+        return true;
+      },
+      canConfirm() {
+        return !!this.selectedAccount && this.mappingComplete() && !!this.fileName;
+      },
+      sizeClass() {
+        if (this.modalSize === "sm") return "max-w-xl";
+        if (this.modalSize === "lg") return "max-w-5xl";
+        return "max-w-3xl";
+      },
+      nextStep() {
+        if (this.canNext()) this.currentStep = Math.min(this.steps.length - 1, this.currentStep + 1);
+      },
+      prevStep() {
+        this.currentStep = Math.max(0, this.currentStep - 1);
+      },
+    };
+  }
+</script>

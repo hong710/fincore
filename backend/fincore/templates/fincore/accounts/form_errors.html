@@ -1,0 +1,9 @@
+{% if form_errors %}
+  <div class="mb-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+    <ul class="list-disc pl-4 space-y-1">
+      {% for err in form_errors %}
+        <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

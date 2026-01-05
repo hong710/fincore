@@ -2,7 +2,29 @@
 {% block title %}Accounts · Fincore{% endblock %}
 
 {% block content %}
-<div class="space-y-4">
+<div
+  class="space-y-4 flex flex-col h-full"
+  x-data="{
+    createOpen: false,
+    editOpen: false,
+    deleteOpen: false,
+    editForm: { id: null, name: '', account_type: 'checking', institution: '', notes: '', is_active: true },
+    deleteTarget: { id: null, name: '' },
+    openEdit(data) {
+      this.editForm = { ...data };
+      this.editOpen = true;
+      this.$nextTick(() => { if (this.$refs.editErrors) this.$refs.editErrors.textContent = ''; });
+    },
+    openDelete(data) {
+      this.deleteTarget = { ...data };
+      this.deleteOpen = true;
+      this.$nextTick(() => { if (this.$refs.deleteErrors) this.$refs.deleteErrors.textContent = ''; });
+    }
+  }"
+  @open-edit.window="openEdit($event.detail)"
+  @open-delete.window="openDelete($event.detail)"
+  @accounts:editClose.window="editOpen = false"
+>
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-lg font-semibold text-slate-900">Accounts</h1>
@@ -10,64 +32,171 @@
     </div>
     <div class="flex items-center gap-2">
       <button class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-        <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5 21 6m0 0-4.5-4.5M21 6h-6a2.25 2.25 0 0 0-2.25 2.25V21M8.25 9.75H6.75A2.25 2.25 0 0 0 4.5 12v6a2.25 2.25 0 0 0 2.25 2.25h6a2.25 2.25 0 0 0 2.25-2.25v-1.5" /></svg>
+        <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 16.5v-9m0 0L8.25 11.25M12 7.5l3.75 3.75M3.75 19.5h16.5A1.5 1.5 0 0 0 21.75 18V6A1.5 1.5 0 0 0 20.25 4.5H3.75A1.5 1.5 0 0 0 2.25 6v12A1.5 1.5 0 0 0 3.75 19.5Z" /></svg>
         Import .CSV
       </button>
-      <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-        <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="createOpen = true">
+        <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         New Account
       </button>
     </div>
   </div>
 
-  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[60vh]">
-    <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-      <div class="flex items-center gap-3 flex-wrap">
-        <span class="text-slate-500">Filters: No filters</span>
-        <div class="relative">
-          <input type="text" class="rounded-md border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56" placeholder="Search accounts">
-          <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 5.25 5.25a7.5 7.5 0 0 0 11.4 11.4Z"/></svg>
-        </div>
-      </div>
-      <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
-        <button type="button" class="px-2 py-1 hover:bg-slate-50">Prev</button>
-        <span class="border-l border-r border-slate-200 px-2 py-1">1 / 1</span>
-        <button type="button" class="px-2 py-1 hover:bg-slate-50">Next</button>
-      </div>
-    </div>
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="accounts-table" hx-get="{% url 'fincore:account_table' %}" hx-trigger="load,accounts:refresh from:body"></div>
 
-    <div class="overflow-x-auto flex-1 min-h-[50vh]">
-      <table class="min-w-full text-sm text-slate-800">
-        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
-          <tr>
-            <th class="py-2 px-3 text-left">Account</th>
-            <th class="py-2 px-3 text-left">Type</th>
-            <th class="py-2 px-3 text-left">Institution</th>
-            <th class="py-2 px-3 text-left">Status</th>
-            <th class="py-2 px-3 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200">
-          <tr class="hover:bg-slate-50">
-            <td class="px-3 py-2">Operating Account</td>
-            <td class="px-3 py-2 text-slate-600">Checking</td>
-            <td class="px-3 py-2 text-slate-600">ACME Bank</td>
-            <td class="px-3 py-2"><span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span></td>
-            <td class="px-3 py-2 text-right">
-              <button class="text-indigo-600 hover:text-indigo-700 text-sm">Edit</button>
-            </td>
-          </tr>
-          <tr class="hover:bg-slate-50">
-            <td class="px-3 py-2">Payroll Account</td>
-            <td class="px-3 py-2 text-slate-600">Checking</td>
-            <td class="px-3 py-2 text-slate-600">ACME Bank</td>
-            <td class="px-3 py-2"><span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Pending</span></td>
-            <td class="px-3 py-2 text-right">
-              <button class="text-indigo-600 hover:text-indigo-700 text-sm">Edit</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <!-- Create account modal -->
+  <div
+    x-cloak
+    x-show="createOpen"
+    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @keydown.escape.window="createOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Create New Account</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="createOpen = false" aria-label="Close">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6m0 12L6 6" /></svg>
+        </button>
+      </div>
+      <div id="account-form-errors" class="px-4 pt-3 text-sm text-rose-600"></div>
+      <form hx-post="{% url 'fincore:account_create' %}" hx-target="#account-form-errors" hx-swap="innerHTML" hx-on:htmx:afterRequest="if (event.detail.successful) { createOpen = false }">
+        <div class="space-y-4 p-4 text-sm text-slate-800">
+          <div class="space-y-1">
+            <label for="acct-name" class="text-sm font-medium text-slate-700">Account name *</label>
+            <input name="name" id="acct-name" type="text" required class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g., Operating Account">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <label for="acct-type" class="text-sm font-medium text-slate-700">Type</label>
+              <select name="account_type" id="acct-type" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="checking">Checking</option>
+                <option value="savings">Savings</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="cash">Cash</option>
+                <option value="loan">Loan</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label for="acct-inst" class="text-sm font-medium text-slate-700">Institution (optional)</label>
+              <input name="institution" id="acct-inst" type="text" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Bank or provider name">
+            </div>
+          </div>
+          <div class="space-y-1">
+            <label for="acct-notes" class="text-sm font-medium text-slate-700">Notes (optional)</label>
+            <textarea name="notes" id="acct-notes" rows="3" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Internal notes"></textarea>
+          </div>
+          <div class="flex items-center gap-2">
+            <input name="is_active" id="acct-active" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked>
+            <label for="acct-active" class="text-sm text-slate-700">Active (available for new transactions)</label>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="createOpen = false">Cancel</button>
+          <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit account modal -->
+  <div
+    x-cloak
+    x-show="editOpen"
+    class="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="editOpen = false"
+    @keydown.escape.window="editOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Edit Account</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="editOpen = false" aria-label="Close">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6m0 12L6 6" /></svg>
+        </button>
+      </div>
+      <div x-ref="editErrors" id="account-edit-errors" class="px-4 pt-3 text-sm text-rose-600"></div>
+      <form
+        hx-post="{% url 'fincore:account_update' %}"
+        hx-target="#account-edit-errors"
+        hx-swap="innerHTML"
+        @htmx:after-request.camel="if ($event.detail.xhr.status === 204) editOpen = false"
+      >
+        <div class="space-y-4 p-4 text-sm text-slate-800">
+          <input type="hidden" name="account_id" x-model="editForm.id">
+          <div class="space-y-1">
+            <label for="acct-edit-name" class="text-sm font-medium text-slate-700">Account name *</label>
+            <input name="name" id="acct-edit-name" type="text" required x-model="editForm.name" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g., Operating Account">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <label for="acct-edit-type" class="text-sm font-medium text-slate-700">Type</label>
+              <select name="account_type" id="acct-edit-type" x-model="editForm.account_type" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="checking">Checking</option>
+                <option value="savings">Savings</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="cash">Cash</option>
+                <option value="loan">Loan</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label for="acct-edit-inst" class="text-sm font-medium text-slate-700">Institution (optional)</label>
+              <input name="institution" id="acct-edit-inst" type="text" x-model="editForm.institution" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Bank or provider name">
+            </div>
+          </div>
+          <div class="space-y-1">
+            <label for="acct-edit-notes" class="text-sm font-medium text-slate-700">Notes (optional)</label>
+            <textarea name="notes" id="acct-edit-notes" rows="3" x-model="editForm.notes" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Internal notes"></textarea>
+          </div>
+          <div class="flex items-center gap-2">
+            <input name="is_active" id="acct-edit-active" type="checkbox" x-model="editForm.is_active" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <label for="acct-edit-active" class="text-sm text-slate-700">Active (available for new transactions)</label>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="editOpen = false">Cancel</button>
+          <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete account modal -->
+  <div
+    x-cloak
+    x-show="deleteOpen"
+    class="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="deleteOpen = false"
+    @keydown.escape.window="deleteOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Delete Account</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="deleteOpen = false" aria-label="Close">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6m0 12L6 6" /></svg>
+        </button>
+      </div>
+      <div class="px-4 pt-3 text-sm text-slate-700">
+        Delete <strong x-text="deleteTarget.name"></strong>? Allowed only if it has no transactions.
+      </div>
+      <div x-ref="deleteErrors" id="account-delete-errors" class="px-4 pt-2 text-sm text-rose-600"></div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="deleteOpen = false">Cancel</button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+          x-bind:hx-post="'/accounts/' + deleteTarget.id + '/delete/'"
+          hx-target="#account-delete-errors"
+          hx-swap="innerHTML"
+          hx-on:htmx:afterRequest="if (event.detail.successful) { deleteOpen = false }"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   </div>
 </div>

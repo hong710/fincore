@@ -51,22 +51,23 @@
             <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 19.5-7.5-7.5 7.5-7.5"/></svg>
           </button>
         </div>
+        {% with current=request.resolver_match.url_name|default:'' %}
         <nav class="flex-1 space-y-1 overflow-y-auto p-3 text-sm">
-          <a href="#" class="flex items-center gap-2 rounded-md px-3 py-2 font-medium text-indigo-700 bg-indigo-50">
-            <svg class="h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <a href="#" class="flex items-center gap-2 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-50">
+            <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h12A2.25 2.25 0 0 1 20.25 6v12a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18V6Z" />
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 15.75v-3M12 15.75v-6M16.5 15.75v-4.5" />
             </svg>
             <span x-show="sidebarOpen">Dashboard</span>
           </a>
-          <a href="{% url 'fincore:transaction_list' %}" class="flex items-center gap-2 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-50">
-            <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <a href="{% url 'fincore:transaction_list' %}" class="flex items-center gap-2 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-50 {% if current == 'transaction_list' %}bg-indigo-50 text-indigo-700 font-semibold{% endif %}">
+            <svg class="h-4 w-4 {% if current == 'transaction_list' %}text-indigo-600{% else %}text-slate-500{% endif %}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9.75 12 3l9 6.75M4.5 10.5h15M6 21h12M6.75 10.5v10.5m3-10.5v10.5m3-10.5v10.5m3-10.5v10.5" />
             </svg>
             <span x-show="sidebarOpen">Transactions</span>
           </a>
-          <a href="{% url 'fincore:account_list' %}" class="flex items-center gap-2 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-50">
-            <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <a href="{% url 'fincore:account_list' %}" class="flex items-center gap-2 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-50 {% if current == 'account_list' %}bg-indigo-50 text-indigo-700 font-semibold{% endif %}">
+            <svg class="h-4 w-4 {% if current == 'account_list' %}text-indigo-600{% else %}text-slate-500{% endif %}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6.75h16.5a.75.75 0 0 1 .75.75v9a.75.75 0 0 1-.75.75H3.75a.75.75 0 0 1-.75-.75v-9a.75.75 0 0 1 .75-.75Z" />
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7.5 10.5a2.25 2.25 0 1 0 0 4.5h9a2.25 2.25 0 1 0 0-4.5h-9Z" />
             </svg>
@@ -179,15 +180,18 @@
             <span x-show="sidebarOpen">Preferences</span>
           </a>
         </nav>
+        {% endwith %}
       </aside>
 
       <!-- Main content -->
-      <div class="flex flex-1 flex-col">
-        <main class="flex-1 overflow-auto bg-slate-50 p-4">
-          {% include "fincore/components/messages.html" %}
-          {% block content %}
-            <div class="rounded-lg border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-600">Main content area (HTMX targets swap here)</div>
-          {% endblock %}
+      <div class="flex flex-1 flex-col min-h-0">
+        <main class="flex-1 min-h-0 overflow-auto bg-slate-50 p-4">
+          <div class="flex h-full flex-col gap-4 min-h-0">
+            {% include "fincore/components/messages.html" %}
+            {% block content %}
+              <div class="flex-1 rounded-lg border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-600">Main content area (HTMX targets swap here)</div>
+            {% endblock %}
+          </div>
         </main>
         <footer class="border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">© 2026 Fincore · Internal Use Only</footer>
       </div>

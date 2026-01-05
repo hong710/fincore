@@ -1,0 +1,51 @@
+<div class="relative inline-flex w-full justify-start">
+  <button
+    type="button"
+    @click.stop="openId === {{ account.id }} ? openId = null : openId = {{ account.id }}"
+    class="inline-flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+    aria-haspopup="menu"
+    :aria-expanded="openId === {{ account.id }}"
+  >
+    Actions
+    <svg class="h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <div
+    x-cloak
+    x-show="openId === {{ account.id }}"
+    x-transition.opacity
+    @click.outside="openId = null"
+    @keydown.escape.window="openId = null"
+    class="absolute left-0 top-full z-50 mt-1 w-full space-y-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg"
+  >
+    <button
+      type="button"
+      class="w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+      @click.stop="
+        openId = null;
+        $dispatch('open-edit', {
+          id: {{ account.id }},
+          name: '{{ account.name|escapejs }}',
+          account_type: '{{ account.account_type }}',
+          institution: '{{ account.institution|default:''|escapejs }}',
+          notes: '{{ account.description|default:''|escapejs }}',
+          is_active: {{ account.is_active|yesno:'true,false' }}
+        })
+      "
+    >
+      Edit
+    </button>
+    <button
+      type="button"
+      class="w-full rounded-md px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+      @click.stop="
+        openId = null;
+        $dispatch('open-delete', {
+          id: {{ account.id }},
+          name: '{{ account.name|escapejs }}'
+        })
+      "
+    >
+      Delete
+    </button>
+  </div>
+</div>

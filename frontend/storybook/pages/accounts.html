@@ -1,4 +1,20 @@
-<section class="flex h-screen flex-col bg-slate-50" x-data="{ sidebarOpen: true, docsOpen: false, salesOpen: false, expenseOpen: false, reportOpen: false }">
+<section
+  class="flex h-screen flex-col bg-slate-50"
+  x-data="{
+    sidebarOpen: true,
+    docsOpen: false,
+    salesOpen: false,
+    expenseOpen: false,
+    reportOpen: false,
+    openId: null,
+    editOpen: false,
+    deleteOpen: false,
+    editForm: { id: null, name: '', account_type: 'checking', institution: '', notes: '', is_active: true },
+    deleteTarget: { id: null, name: '' },
+    openEdit(data) { this.editForm = { ...data }; this.editOpen = true; },
+    openDelete(data) { this.deleteTarget = { ...data }; this.deleteOpen = true; }
+  }"
+>
   <!-- Header -->
   <header class="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-indigo-600 px-4 shadow-sm text-white">
     <div class="flex items-center gap-3">
@@ -209,7 +225,7 @@
                   <th class="py-2 px-3 text-left">Type</th>
                   <th class="py-2 px-3 text-left">Institution</th>
                   <th class="py-2 px-3 text-left">Status</th>
-                  <th class="py-2 px-3 text-right">Actions</th>
+                  <th class="py-2 px-3 text-left w-32">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-200">
@@ -218,8 +234,39 @@
                   <td class="px-3 py-2 text-slate-600">Checking</td>
                   <td class="px-3 py-2 text-slate-600">ACME Bank</td>
                   <td class="px-3 py-2"><span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span></td>
-                  <td class="px-3 py-2 text-right">
-                    <button class="text-indigo-600 hover:text-indigo-700 text-sm">Edit</button>
+                  <td class="px-3 py-2 text-left">
+                    <div class="relative inline-flex w-full justify-start">
+                      <button
+                        type="button"
+                        class="inline-flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                        @click.stop="openId === 1 ? openId = null : openId = 1"
+                      >
+                        Actions
+                        <svg class="h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                      <div
+                        x-cloak
+                        x-show="openId === 1"
+                        x-transition.opacity
+                        @click.outside="openId = null"
+                        class="absolute left-0 top-full z-50 mt-1 w-full space-y-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg"
+                      >
+                        <button
+                          type="button"
+                          class="w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                          @click.stop="openId = null; openEdit({ id: 1, name: 'Operating Account', account_type: 'checking', institution: 'ACME Bank', notes: '', is_active: true })"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="w-full rounded-md px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+                          @click.stop="openId = null; openDelete({ id: 1, name: 'Operating Account' })"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
                 <tr class="hover:bg-slate-50">
@@ -227,8 +274,39 @@
                   <td class="px-3 py-2 text-slate-600">Checking</td>
                   <td class="px-3 py-2 text-slate-600">ACME Bank</td>
                   <td class="px-3 py-2"><span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Pending</span></td>
-                  <td class="px-3 py-2 text-right">
-                    <button class="text-indigo-600 hover:text-indigo-700 text-sm">Edit</button>
+                  <td class="px-3 py-2 text-left">
+                    <div class="relative inline-flex w-full justify-start">
+                      <button
+                        type="button"
+                        class="inline-flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                        @click.stop="openId === 2 ? openId = null : openId = 2"
+                      >
+                        Actions
+                        <svg class="h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                      <div
+                        x-cloak
+                        x-show="openId === 2"
+                        x-transition.opacity
+                        @click.outside="openId = null"
+                        class="absolute left-0 top-full z-50 mt-1 w-full space-y-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg"
+                      >
+                        <button
+                          type="button"
+                          class="w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                          @click.stop="openId = null; openEdit({ id: 2, name: 'Payroll Account', account_type: 'checking', institution: 'ACME Bank', notes: '', is_active: true })"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          class="w-full rounded-md px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+                          @click.stop="openId = null; openDelete({ id: 2, name: 'Payroll Account' })"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -237,6 +315,87 @@
         </div>
       </main>
       <footer class="border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">© 2026 NexHub · Internal Use Only</footer>
+    </div>
+  </div>
+
+  <!-- Edit account modal -->
+  <div
+    x-cloak
+    x-show="editOpen"
+    class="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="editOpen = false"
+    @keydown.escape.window="editOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Edit Account</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="editOpen = false" aria-label="Close">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6m0 12L6 6" /></svg>
+        </button>
+      </div>
+      <div class="space-y-4 p-4 text-sm text-slate-800">
+        <div class="space-y-1">
+          <label for="sb-edit-name" class="text-sm font-medium text-slate-700">Account name *</label>
+          <input id="sb-edit-name" type="text" required x-model="editForm.name" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g., Operating Account">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label for="sb-edit-type" class="text-sm font-medium text-slate-700">Type</label>
+            <select id="sb-edit-type" x-model="editForm.account_type" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+              <option value="credit_card">Credit Card</option>
+              <option value="cash">Cash</option>
+              <option value="loan">Loan</option>
+            </select>
+          </div>
+          <div class="space-y-1">
+            <label for="sb-edit-inst" class="text-sm font-medium text-slate-700">Institution (optional)</label>
+            <input id="sb-edit-inst" type="text" x-model="editForm.institution" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Bank or provider name">
+          </div>
+        </div>
+        <div class="space-y-1">
+          <label for="sb-edit-notes" class="text-sm font-medium text-slate-700">Notes (optional)</label>
+          <textarea id="sb-edit-notes" rows="3" x-model="editForm.notes" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Internal notes"></textarea>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="sb-edit-active" type="checkbox" x-model="editForm.is_active" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+          <label for="sb-edit-active" class="text-sm text-slate-700">Active (available for new transactions)</label>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="editOpen = false">Cancel</button>
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="editOpen = false">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete account modal -->
+  <div
+    x-cloak
+    x-show="deleteOpen"
+    class="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="deleteOpen = false"
+    @keydown.escape.window="deleteOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Delete Account</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="deleteOpen = false" aria-label="Close">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6m0 12L6 6" /></svg>
+        </button>
+      </div>
+      <div class="px-4 pt-3 text-sm text-slate-700">
+        Delete <strong x-text="deleteTarget.name"></strong>? Allowed only if it has no transactions.
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="deleteOpen = false">Cancel</button>
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700" @click="deleteOpen = false">Delete</button>
+      </div>
     </div>
   </div>
 

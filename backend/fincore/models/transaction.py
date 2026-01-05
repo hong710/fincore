@@ -2,6 +2,7 @@ from django.db import models
 from .account import Account
 from .category import Category
 from .transfer_group import TransferGroup
+from .import_batch import ImportBatch
 
 
 class Transaction(models.Model):
@@ -33,6 +34,15 @@ class Transaction(models.Model):
     payee = models.CharField(max_length=255, blank=True, help_text="Other party involved; free text; direction determined by kind/amount.")
     category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     transfer_group = models.ForeignKey(TransferGroup, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
+    is_imported = models.BooleanField(default=False, help_text="True when created from CSV import; manual/system otherwise.")
+    import_batch = models.ForeignKey(
+        ImportBatch,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="transactions",
+        help_text="Nullable link to the import batch that created these rows.",
+    )
     description = models.CharField(max_length=255, blank=True)
     source = models.CharField(max_length=6, choices=SOURCE_CHOICES, default="manual")
     created_at = models.DateTimeField(auto_now_add=True)

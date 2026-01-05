@@ -2,14 +2,14 @@
 {% block title %}Transactions · Fincore{% endblock %}
 
 {% block content %}
-<div class="space-y-4" x-data="transactionsTable()">
+<div class="space-y-4 flex flex-col h-full" x-data="{ uploadOpen: false }" @open-import.window="uploadOpen = true">
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-lg font-semibold text-slate-900">Transactions</h1>
       <p class="text-sm text-slate-500">View and manage transaction records</p>
     </div>
     <div class="flex items-center gap-2">
-      <button class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+      <button class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50" @click="$dispatch('open-import')">
         <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5 21 6m0 0-4.5-4.5M21 6h-6a2.25 2.25 0 0 0-2.25 2.25V21M8.25 9.75H6.75A2.25 2.25 0 0 0 4.5 12v6a2.25 2.25 0 0 0 2.25 2.25h6a2.25 2.25 0 0 0 2.25-2.25v-1.5" /></svg>
         Upload .CSV
       </button>
@@ -17,282 +17,137 @@
     </div>
   </div>
 
-  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[70vh]">
-    <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-      <div class="flex items-center gap-3 flex-wrap">
-        <span class="text-slate-500">Filters: <span x-text="filterSummary()"></span></span>
-        <label class="flex items-center gap-2 text-slate-500">
-          <span>Rows per page</span>
-          <select class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model.number="pagination.pageSize" @change="pagination.page=1">
-            <template x-for="size in pagination.sizes" :key="size">
-              <option :value="size" x-text="size"></option>
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="transactions-table" hx-get="{% url 'fincore:transaction_table' %}" hx-trigger="load"></div>
+</div>
+
+<!-- Import CSV wizard modal -->
+<div
+  x-data="importWizard()"
+  x-on:open-import.window="uploadOpen = true"
+  x-cloak
+  x-show="uploadOpen"
+  class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+  role="dialog"
+  aria-modal="true"
+>
+  <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+    <div class="flex items-center justify-between border-b border-slate-200 p-4">
+      <h2 class="text-sm font-medium text-slate-700">Upload CSV File</h2>
+      <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="uploadOpen = false; resetWizard()" aria-label="Close">✕</button>
+    </div>
+    <div class="p-4 space-y-4">
+      <div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+        <template x-for="(label, index) in steps" :key="index">
+          <div class="flex items-center gap-2">
+            <div class="flex h-6 w-6 items-center justify-center rounded-full border" :class="currentStep > index ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : currentStep === index ? 'border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-400'">
+              <span x-text="index + 1"></span>
+            </div>
+            <span x-text="label"></span>
+            <template x-if="index < steps.length - 1">
+              <span class="text-slate-300">/</span>
             </template>
-          </select>
-        </label>
-        <div class="relative">
-          <input type="text" class="rounded-md border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56" placeholder="Search transactions" x-model="searchTerm">
-          <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 5.25 5.25a7.5 7.5 0 0 0 11.4 11.4Z"/></svg>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-slate-500">Bulk actions</span>
-          <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
-            <button type="button" class="px-2 py-1 hover:bg-slate-50 disabled:opacity-50" :disabled="selectedIds.length===0" @click="deleteSelected()">Delete</button>
-            <span class="block w-px bg-slate-200"></span>
-            <button type="button" class="px-2 py-1 hover:bg-slate-50 disabled:opacity-50" :disabled="selectedIds.length===0" @click="exportSelected()">Export</button>
           </div>
-          <span class="text-slate-400" x-show="selectedIds.length">(<span x-text="selectedIds.length"></span> selected)</span>
+        </template>
+      </div>
+
+      <div class="rounded-md border border-slate-200 bg-slate-50 p-4" x-show="currentStep === 0">
+        <h3 class="text-sm font-semibold text-slate-800">1) Upload CSV</h3>
+        <p class="text-xs text-slate-500 mb-3">Accepted: .csv · Max 10MB.</p>
+        <input type="file" accept=".csv" class="block w-full cursor-pointer rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          @change="onFileSelect">
+        <p class="mt-2 text-xs text-slate-600" x-text="fileName ? `Selected: ${fileName}` : 'No file selected'"></p>
+      </div>
+
+      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 1">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-800">2) Column mapping</h3>
+            <p class="text-xs text-slate-500">Map exactly one column to Date, Description, Amount. Everything else → Ignore. Kind/Category/Transfer/Account mappings are forbidden.</p>
+          </div>
+          <p class="text-xs font-semibold" :class="mappingComplete() ? 'text-emerald-600' : 'text-amber-600'" x-text="mappingComplete() ? 'Ready' : 'Incomplete'"></p>
+        </div>
+        <div class="overflow-hidden rounded border border-slate-200 bg-white">
+          <table class="min-w-full text-xs">
+            <thead class="bg-slate-50 text-slate-600">
+              <tr>
+                <th class="px-3 py-2 text-left">CSV Column</th>
+                <th class="px-3 py-2 text-left">Map to</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <template x-for="col in columns" :key="col">
+                <tr>
+                  <td class="px-3 py-2 font-medium text-slate-700" x-text="col"></td>
+                  <td class="px-3 py-2">
+                    <select class="w-48 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+                      x-model="mappings[col]">
+                      <option value="ignore">Ignore</option>
+                      <option value="date">Date</option>
+                      <option value="description">Description</option>
+                      <option value="amount">Amount</option>
+                    </select>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <span>Showing <span x-text="visibleRows().length"></span> of <span x-text="filteredAndSortedRows().length"></span> records</span>
-        <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
-          <button type="button" class="px-2 py-1 hover:bg-slate-50 disabled:opacity-50" :disabled="pagination.page===1" @click="pagination.page=Math.max(1, pagination.page-1)">Prev</button>
-          <span class="border-l border-r border-slate-200 px-2 py-1" x-text="pagination.page + ' / ' + totalPages()"></span>
-          <button type="button" class="px-2 py-1 hover:bg-slate-50 disabled:opacity-50" :disabled="pagination.page>=totalPages()" @click="pagination.page=Math.min(totalPages(), pagination.page+1)">Next</button>
+
+      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 2">
+        <h3 class="text-sm font-semibold text-slate-800">3) Preview (first 10 rows)</h3>
+        <div class="overflow-auto rounded border border-slate-200 bg-white">
+          <table class="min-w-full text-xs">
+            <thead class="bg-slate-50 text-slate-600">
+              <tr>
+                <th class="px-3 py-2 text-left">Date</th>
+                <th class="px-3 py-2 text-left">Description</th>
+                <th class="px-3 py-2 text-left">Amount</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <template x-for="row in previewRows" :key="row.id">
+                <tr>
+                  <td class="px-3 py-2 text-slate-800" x-text="row.date"></td>
+                  <td class="px-3 py-2 text-slate-800" x-text="row.description"></td>
+                  <td class="px-3 py-2 text-slate-800" x-text="row.amount"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </div>
+      </div>
+
+      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 3">
+        <h3 class="text-sm font-semibold text-slate-800">4) Select account</h3>
+        <p class="text-xs text-slate-500">Required. Account type guides validation (credit_card, debit_card, bank).</p>
+        <select class="w-64 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="selectedAccount">
+          <option value="">Choose account</option>
+          <template x-for="acct in accounts" :key="acct.id">
+            <option :value="acct.id" x-text="`${acct.name} (${acct.type})`"></option>
+          </template>
+        </select>
+      </div>
+
+      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-2" x-show="currentStep === 4">
+        <h3 class="text-sm font-semibold text-slate-800">5) Confirm import</h3>
+        <ul class="list-disc pl-5 text-xs text-slate-700 space-y-1">
+          <li>All rows will be marked imported and linked to one import batch.</li>
+          <li>Amount &lt; 0 → Expense, Amount &gt; 0 → Income.</li>
+          <li>Category and Payee will be empty; no auto-transfers or balances used.</li>
+          <li>Rollback is only allowed per import batch (never partial).</li>
+        </ul>
       </div>
     </div>
-
-    <div class="overflow-x-auto flex-1 min-h-[60vh]">
-      <div class="overflow-y-auto h-full min-h-[60vh]">
-        <table class="min-w-full text-sm text-slate-800 h-full">
-          <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
-            <tr class="sticky top-0 bg-slate-50">
-              <th class="py-1.5 px-3 text-left align-top w-10">
-                <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :checked="allVisibleSelected()" @change="toggleSelectAllVisible($event)">
-              </th>
-                  <th class="py-1.5 px-3 text-left align-top w-12">#</th>
-                  <!-- Date -->
-                  <th class="py-1.5 px-3 text-left align-top">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm text-slate-700">Date</span>
-                      <div class="hs-dropdown relative inline-flex z-20 [--placement:bottom-left] [--auto-close:inside]">
-                        <button x-ref="txDateBtn" id="tx-date-filter" type="button" class="hs-dropdown-toggle inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('date') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'">
-                          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('date') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
-                            <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
-                          </svg>
-                        </button>
-                        <div class="hs-dropdown-menu hidden z-50 mt-2 w-60 space-y-3 rounded-md border border-slate-200 bg-white p-3 shadow-md" aria-labelledby="tx-date-filter">
-                          <div class="grid grid-cols-2 gap-2 text-xs font-medium text-slate-700">
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='this_month' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('this_month')">This month</button>
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='last_month' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('last_month')">Last month</button>
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q1' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q1')">1st quarter</button>
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q2' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q2')">2nd quarter</button>
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q3' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q3')">3rd quarter</button>
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q4' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q4')">4th quarter</button>
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='this_year' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('this_year')">This year</button>
-                            <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='last_year' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('last_year')">Last year</button>
-                          </div>
-                          <div class="space-y-2 text-xs text-slate-700">
-                            <p class="font-medium">Custom range</p>
-                            <div class="space-y-2">
-                              <label class="relative block w-full">
-                                <span class="absolute left-3 top-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">From</span>
-                                <input type="date" class="w-full rounded-md border border-slate-200 px-3 pt-6 pb-2 text-xs font-semibold text-slate-800 placeholder:font-semibold placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.dateRange.from" @input="draft.dateRange.type='custom'">
-                              </label>
-                              <label class="relative block w-full">
-                                <span class="absolute left-3 top-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">To</span>
-                                <input type="date" class="w-full rounded-md border border-slate-200 px-3 pt-6 pb-2 text-xs font-semibold text-slate-800 placeholder:font-semibold placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.dateRange.to" @input="draft.dateRange.type='custom'">
-                              </label>
-                            </div>
-                          </div>
-                          <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                            <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('date','asc')">Sort A→Z</button>
-                            <span class="block w-px bg-slate-200"></span>
-                            <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('date','desc')">Sort Z→A</button>
-                          </div>
-                          <div class="flex justify-end gap-2 pt-1">
-                            <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('date'); $refs.txDateBtn?.click()">Cancel</button>
-                            <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="filters.date.range={type:'all',key:'',from:'',to:''}; resetDraft('date'); $refs.txDateBtn?.click()">Clear</button>
-                            <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('date'); $refs.txDateBtn?.click()">Apply</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </th>
-                  <!-- Payee -->
-                  <th class="py-1.5 px-3 text-left align-top">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm text-slate-700">Payee</span>
-                      <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                        <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('payee') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('payee') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
-                            <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
-                          </svg>
-                        </button>
-                        <div x-cloak x-show="open" @click.outside="open=false" class="absolute left-0 z-50 mt-2 w-56 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
-                          <input type="text" placeholder="Search payees" class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="filters.payee.search">
-                          <div class="flex items-center gap-2 text-xs text-slate-600">
-                            <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="selectAll('payee')">Select all</button>
-                            <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="unselectAll('payee')">Unselect all</button>
-                          </div>
-                          <div class="max-h-40 space-y-1 overflow-y-auto">
-                            <template x-for="opt in filteredPayeeOptions()" :key="opt">
-                              <label class="flex items-center gap-2 text-xs text-slate-700">
-                                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.payee">
-                                <span x-text="opt"></span>
-                              </label>
-                            </template>
-                          </div>
-                          <div class="flex justify-end gap-2 pt-1">
-                            <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('payee'); open=false">Cancel</button>
-                            <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('payee'); open=false">Apply</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </th>
-                  <!-- Description -->
-                  <th class="py-1.5 px-3 text-left align-top">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm text-slate-700">Description</span>
-                      <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                        <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('description') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('description') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
-                            <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
-                          </svg>
-                        </button>
-                        <div x-cloak x-show="open" @click.outside="open=false" class="absolute left-0 z-50 mt-2 w-64 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
-                          <input type="text" placeholder="Search descriptions" class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="filters.description.search">
-                          <div class="flex items-center gap-2 text-xs text-slate-600">
-                            <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="selectAll('description')">Select all</button>
-                            <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="unselectAll('description')">Unselect all</button>
-                          </div>
-                          <div class="max-h-40 space-y-1 overflow-y-auto">
-                            <template x-for="opt in filteredDescriptionOptions()" :key="opt">
-                              <label class="flex items-center gap-2 text-xs text-slate-700">
-                                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.description">
-                                <span x-text="opt"></span>
-                              </label>
-                            </template>
-                          </div>
-                          <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                            <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('description','asc')">Sort A→Z</button>
-                            <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('description','desc')">Sort Z→A</button>
-                          </div>
-                          <div class="flex justify-end gap-2 pt-1">
-                            <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('description'); open=false">Cancel</button>
-                            <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('description'); open=false">Apply</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </th>
-              <th class="py-1.5 px-3 text-left align-top">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm text-slate-700">Kind</span>
-                  <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                    <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('category') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('category') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
-                        <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
-                      </svg>
-                    </button>
-                    <div x-cloak x-show="open" @click.outside="open=false" class="absolute left-0 z-50 mt-2 w-56 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
-                      <input type="text" placeholder="Search categories" class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="filters.category.search">
-                      <div class="flex items-center gap-2 text-xs text-slate-600">
-                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="selectAll('category')">Select all</button>
-                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="unselectAll('category')">Unselect all</button>
-                      </div>
-                      <div class="max-h-40 space-y-1 overflow-y-auto">
-                        <template x-for="opt in filteredCategoryOptions()" :key="opt">
-                          <label class="flex items-center gap-2 text-xs text-slate-700">
-                            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.category">
-                            <span x-text="opt"></span>
-                          </label>
-                        </template>
-                      </div>
-                      <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                        <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('category','asc')">Sort A→Z</button>
-                        <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('category','desc')">Sort Z→A</button>
-                      </div>
-                      <div class="flex justify-end gap-2 pt-1">
-                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('category'); open=false">Cancel</button>
-                        <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('category'); open=false">Apply</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </th>
-              <th class="py-1.5 px-3 text-right align-top">
-                <div class="flex items-center justify-end gap-2">
-                  <span class="text-sm text-slate-700">Spent</span>
-                  <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                    <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('spent') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('spent') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
-                        <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
-                      </svg>
-                    </button>
-                    <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-56 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
-                      <div class="flex items-center gap-2">
-                        <input type="number" placeholder="Min" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model.number="draft.spent.min">
-                        <input type="number" placeholder="Max" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model.number="draft.spent.max">
-                      </div>
-                      <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                        <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('spent','asc')">Sort ↑</button>
-                        <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('spent','desc')">Sort ↓</button>
-                      </div>
-                      <div class="flex justify-end gap-2 pt-1">
-                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('spent'); open=false">Cancel</button>
-                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="filters.spent={min:null,max:null}; resetDraft('spent'); open=false">Clear</button>
-                        <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('spent'); open=false">Apply</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </th>
-              <th class="py-1.5 px-3 text-right align-top">
-                <div class="flex items-center justify-end gap-2">
-                  <span class="text-sm text-slate-700">Received</span>
-                  <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                    <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('received') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('received') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
-                        <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
-                      </svg>
-                    </button>
-                    <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-56 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
-                      <div class="flex items-center gap-2">
-                        <input type="number" placeholder="Min" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model.number="draft.received.min">
-                        <input type="number" placeholder="Max" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model.number="draft.received.max">
-                      </div>
-                      <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                        <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('received','asc')">Sort ↑</button>
-                        <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('received','desc')">Sort ↓</button>
-                      </div>
-                      <div class="flex justify-end gap-2 pt-1">
-                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('received'); open=false">Cancel</button>
-                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="filters.received={min:null,max:null}; resetDraft('received'); open=false">Clear</button>
-                        <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('received'); open=false">Apply</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </th>
-              <th class="py-1.5 px-3 text-right text-sm text-slate-500">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-200">
-            <template x-if="filteredAndSortedRows().length === 0">
-              <tr>
-                <td colspan="8" class="px-4 py-6 text-center text-sm text-slate-500">No data available</td>
-              </tr>
-            </template>
-            <template x-for="(row, idx) in visibleRows()" :key="row.id">
-              <tr class="align-top hover:bg-slate-50 transition-colors">
-                <td class="px-4 py-1.5 whitespace-nowrap">
-                  <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="row.id" x-model="selectedIds">
-                </td>
-                <td class="px-4 py-1.5 whitespace-nowrap text-xs text-slate-600" x-text="(pagination.page - 1) * pagination.pageSize + idx + 1"></td>
-                <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.date"></td>
-                <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.payee || '-'"></td>
-                <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.description"></td>
-                <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.category"></td>
-                <td class="px-4 py-1.5 whitespace-nowrap text-right" :class="row.spent ? 'text-rose-600' : 'text-slate-500'" x-text="row.spent ? `-$${row.spent.toLocaleString()}` : '-'"></td>
-                <td class="px-4 py-1.5 whitespace-nowrap text-right" :class="row.received ? 'text-emerald-600' : 'text-slate-500'" x-text="row.received ? `+$${row.received.toLocaleString()}` : '-'"></td>
-                <td class="px-4 py-1.5 whitespace-nowrap text-right"><button class="text-indigo-600 hover:text-indigo-700">Delete</button></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+    <div class="flex items-center justify-between border-t border-slate-200 p-4">
+      <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="uploadOpen = false; resetWizard()">Cancel</button>
+      <div class="flex items-center gap-2">
+        <template x-if="currentStep < steps.length -1">
+          <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="!canNext()" @click="nextStep()">Next</button>
+        </template>
+        <template x-if="currentStep === steps.length -1">
+          <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="!canConfirm()" @click="uploadOpen=false; resetWizard()">Confirm import</button>
+        </template>
       </div>
     </div>
   </div>
@@ -302,255 +157,68 @@
 {% block body_extra %}
 {{ block.super }}
 <script>
-  function transactionsTable() {
-    const descriptions = [
-      "Client Invoice",
-      "Office Supplies",
-      "Subscription",
-      "Consulting Revenue",
-      "Bank Transfer",
-      "Travel",
-      "Payroll",
-      "Refund",
-      "License Fee",
-      "Hosting",
+  function importWizard() {
+    const sampleRows = [
+      { id: 1, date: "2024-10-12", description: "Client Invoice", amount: "+$1,200.00" },
+      { id: 2, date: "2024-10-11", description: "Office Supplies", amount: "-$180.00" },
+      { id: 3, date: "2024-10-10", description: "Subscription", amount: "-$45.00" },
+      { id: 4, date: "2024-10-09", description: "Consulting Revenue", amount: "+$1,250.00" },
+      { id: 5, date: "2024-10-09", description: "Bank Transfer", amount: "+$500.00" },
+      { id: 6, date: "2024-10-08", description: "Travel", amount: "-$320.00" },
+      { id: 7, date: "2024-10-07", description: "Refund", amount: "+$220.00" },
+      { id: 8, date: "2024-10-06", description: "Payroll", amount: "-$1,800.00" },
+      { id: 9, date: "2024-10-05", description: "Stripe Payout", amount: "+$980.00" },
+      { id: 10, date: "2024-10-04", description: "Hosting", amount: "-$65.00" },
     ];
-    const categories = ["Income", "Expense", "Transfer"];
-
-    function randomAmount(min, max) {
-      return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    function generateTransactions(year, count) {
-      const items = [];
-      for (let i = 0; i < count; i++) {
-        const month = (Math.floor(Math.random() * 12) + 1).toString().padStart(2, "0");
-        const day = (Math.floor(Math.random() * 28) + 1).toString().padStart(2, "0");
-        const date = `${year}-${month}-${day}`;
-        const description = descriptions[Math.floor(Math.random() * descriptions.length)];
-        const category = categories[Math.floor(Math.random() * categories.length)];
-        const payees = ["Client ABC", "Stripe", "Amazon", "Payroll", "Electric Co.", "Transfer"];
-        const payee = payees[Math.floor(Math.random() * payees.length)];
-        let spent = 0;
-        let received = 0;
-        if (category === "Income") {
-          received = randomAmount(200, 5000);
-        } else if (category === "Expense") {
-          spent = randomAmount(20, 1000);
-        } else {
-          received = randomAmount(100, 2000);
-        }
-        items.push({ id: `${year}-${i}`, date, description, category, payee, spent, received });
-      }
-      return items;
-    }
-
-    const rows = [...generateTransactions(2024, 50), ...generateTransactions(2025, 50)];
+    const cols = ["Txn Date", "Details", "Amount", "Balance"];
+    const defaultMap = {};
+    cols.forEach((c) => (defaultMap[c] = "ignore"));
 
     return {
-      rows,
-      selectedIds: [],
-      searchTerm: "",
-      filters: {
-        date: { range: { type: "all", key: "", from: "", to: "" } },
-        description: { selected: [], search: "" },
-        category: { selected: [], search: "" },
-        payee: { selected: [], search: "" },
-        spent: { min: null, max: null },
-        received: { min: null, max: null },
+      steps: ["Upload", "Map", "Preview", "Account", "Confirm"],
+      currentStep: 0,
+      fileName: "",
+      uploadOpen: false,
+      columns: cols,
+      mappings: { ...defaultMap },
+      previewRows: sampleRows,
+      accounts: [
+        { id: "acc-bank-1", name: "Operating Checking", type: "bank" },
+        { id: "acc-cc-1", name: "Corporate Card", type: "credit_card" },
+        { id: "acc-db-1", name: "Debit Card", type: "debit_card" },
+      ],
+      selectedAccount: "",
+      resetWizard() {
+        this.currentStep = 0;
+        this.fileName = "";
+        this.mappings = { ...defaultMap };
+        this.selectedAccount = "";
       },
-      draft: {
-        dateRange: { type: "all", key: "", from: "", to: "" },
-        description: [],
-        category: [],
-        payee: [],
-        spent: { min: null, max: null },
-        received: { min: null, max: null },
+      onFileSelect(event) {
+        const file = event.target.files[0];
+        this.fileName = file ? file.name : "";
       },
-      sort: { column: null, direction: null },
-      pagination: { page: 1, pageSize: 25, sizes: [25, 50, 100] },
-      uniqueDescriptions() {
-        return Array.from(new Set(this.rows.map((r) => r.description))).sort();
+      mappingComplete() {
+        const values = Object.values(this.mappings);
+        const hasDate = values.filter((v) => v === "date").length === 1;
+        const hasDesc = values.filter((v) => v === "description").length === 1;
+        const hasAmount = values.filter((v) => v === "amount").length === 1;
+        return hasDate && hasDesc && hasAmount;
       },
-      uniqueCategories() {
-        return Array.from(new Set(this.rows.map((r) => r.category))).sort();
+      canNext() {
+        if (this.currentStep === 0) return !!this.fileName;
+        if (this.currentStep === 1) return this.mappingComplete();
+        if (this.currentStep === 3) return !!this.selectedAccount;
+        return true;
       },
-      uniquePayees() {
-        return Array.from(new Set(this.rows.map((r) => r.payee))).sort();
+      canConfirm() {
+        return !!this.selectedAccount && this.mappingComplete() && !!this.fileName;
       },
-      filteredDescriptionOptions() {
-        return this.uniqueDescriptions().filter((d) => d.toLowerCase().includes(this.filters.description.search.toLowerCase()));
+      nextStep() {
+        if (this.canNext()) this.currentStep = Math.min(this.steps.length - 1, this.currentStep + 1);
       },
-      filteredCategoryOptions() {
-        return this.uniqueCategories().filter((c) => c.toLowerCase().includes(this.filters.category.search.toLowerCase()));
-      },
-      filteredPayeeOptions() {
-        return this.uniquePayees().filter((p) => (p || "").toLowerCase().includes(this.filters.payee.search.toLowerCase()));
-      },
-      selectAll(type) {
-        if (type === "description") this.draft.description = [...this.uniqueDescriptions()];
-        if (type === "category") this.draft.category = [...this.uniqueCategories()];
-        if (type === "payee") this.draft.payee = [...this.uniquePayees()];
-      },
-      unselectAll(type) {
-        if (type === "description") this.draft.description = [];
-        if (type === "category") this.draft.category = [];
-        if (type === "payee") this.draft.payee = [];
-      },
-      applyDraft(type) {
-        if (type === "date") this.filters.date.range = { ...this.draft.dateRange };
-        if (type === "description") this.filters.description.selected = [...this.draft.description];
-        if (type === "category") this.filters.category.selected = [...this.draft.category];
-        if (type === "payee") this.filters.payee.selected = [...this.draft.payee];
-        if (type === "spent") { this.filters.spent.min = this.draft.spent.min || null; this.filters.spent.max = this.draft.spent.max || null; }
-        if (type === "received") { this.filters.received.min = this.draft.received.min || null; this.filters.received.max = this.draft.received.max || null; }
-      },
-      resetDraft(type) {
-        if (type === "date") this.draft.dateRange = { ...this.filters.date.range };
-        if (type === "description") this.draft.description = [...this.filters.description.selected];
-        if (type === "category") this.draft.category = [...this.filters.category.selected];
-        if (type === "payee") this.draft.payee = [...this.filters.payee.selected];
-        if (type === "spent") this.draft.spent = { min: this.filters.spent.min, max: this.filters.spent.max };
-        if (type === "received") this.draft.received = { min: this.filters.received.min, max: this.filters.received.max };
-      },
-      selectQuickRange(key) {
-        this.draft.dateRange = { type: "quick", key, from: "", to: "" };
-      },
-      getRange(range) {
-        if (range.type === "quick") {
-          const now = new Date();
-          const year = now.getFullYear();
-          const month = now.getMonth();
-          const startEnd = (mStart, mEnd) => ({
-            start: new Date(year, mStart, 1),
-            end: new Date(year, mEnd + 1, 0, 23, 59, 59),
-          });
-          switch (range.key) {
-            case "this_month":
-              return startEnd(month, month);
-            case "last_month":
-              return startEnd(month - 1, month - 1);
-            case "this_year":
-              return startEnd(0, 11);
-            case "last_year":
-              return {
-                start: new Date(year - 1, 0, 1),
-                end: new Date(year - 1, 11, 31, 23, 59, 59),
-              };
-            case "q1":
-              return startEnd(0, 2);
-            case "q2":
-              return startEnd(3, 5);
-            case "q3":
-              return startEnd(6, 8);
-            case "q4":
-              return startEnd(9, 11);
-            default:
-              return null;
-          }
-        }
-        if (range.type === "custom") {
-          const start = range.from ? new Date(range.from) : null;
-          const end = range.to ? new Date(range.to + "T23:59:59") : null;
-          if (!start && !end) return null;
-          return { start, end };
-        }
-        return null;
-      },
-      setSort(column, direction) {
-        this.sort = { column, direction };
-      },
-      filteredAndSortedRows() {
-        let result = this.rows.filter((row) => {
-          let dateOk = true;
-          const range = this.getRange(this.filters.date.range);
-          if (range) {
-            const d = new Date(row.date + "T00:00:00");
-            if (range.start && d < range.start) dateOk = false;
-            if (range.end && d > range.end) dateOk = false;
-          }
-          const descOk = this.filters.description.selected.length === 0 || this.filters.description.selected.includes(row.description);
-          const catOk = this.filters.category.selected.length === 0 || this.filters.category.selected.includes(row.category);
-          const payeeOk = this.filters.payee.selected.length === 0 || this.filters.payee.selected.includes(row.payee);
-          const spentOk =
-            (this.filters.spent.min == null || row.spent >= this.filters.spent.min) &&
-            (this.filters.spent.max == null || row.spent <= this.filters.spent.max);
-          const receivedOk =
-            (this.filters.received.min == null || row.received >= this.filters.received.min) &&
-            (this.filters.received.max == null || row.received <= this.filters.received.max);
-          const searchOk = this.searchTerm
-            ? [row.date, row.description, row.category, row.payee, row.spent?.toString(), row.received?.toString()]
-                .some((val) => (val || "").toLowerCase().includes(this.searchTerm.toLowerCase()))
-            : true;
-          return dateOk && descOk && catOk && payeeOk && spentOk && receivedOk && searchOk;
-        });
-
-        if (this.sort.column) {
-          const dir = this.sort.direction === "desc" ? -1 : 1;
-          result = [...result].sort((a, b) => {
-            const va = a[this.sort.column];
-            const vb = b[this.sort.column];
-            if (va < vb) return -1 * dir;
-            if (va > vb) return 1 * dir;
-            return 0;
-          });
-        }
-        return result;
-      },
-      totalPages() {
-        return Math.max(1, Math.ceil(this.filteredAndSortedRows().length / this.pagination.pageSize));
-      },
-      visibleRows() {
-        const total = this.filteredAndSortedRows();
-        const page = Math.min(this.pagination.page, Math.max(1, Math.ceil(total.length / this.pagination.pageSize) || 1));
-        const start = (page - 1) * this.pagination.pageSize;
-        const end = start + this.pagination.pageSize;
-        this.pagination.page = page;
-        return total.slice(start, end);
-      },
-      filterActive(key) {
-        if (key === "date") return this.filters.date.range.type !== "all";
-        if (key === "description") return this.filters.description.selected.length > 0;
-        if (key === "category") return this.filters.category.selected.length > 0;
-        if (key === "payee") return this.filters.payee.selected.length > 0;
-        if (key === "spent") return this.filters.spent.min != null || this.filters.spent.max != null;
-        if (key === "received") return this.filters.received.min != null || this.filters.received.max != null;
-        return false;
-      },
-      filterSummary() {
-        const parts = [];
-        if (this.filters.date.range.type !== "all") {
-          if (this.filters.date.range.type === "quick") parts.push(`Date: ${this.filters.date.range.key}`);
-          if (this.filters.date.range.type === "custom") parts.push(`Date: ${this.filters.date.range.from || ""}→${this.filters.date.range.to || ""}`);
-        }
-        if (this.filters.description.selected.length) parts.push(`Desc: ${this.filters.description.selected.length}`);
-        if (this.filters.category.selected.length) parts.push(`Kind: ${this.filters.category.selected.length}`);
-        if (this.filters.payee.selected.length) parts.push(`Payee: ${this.filters.payee.selected.length}`);
-        if (this.filters.spent.min != null || this.filters.spent.max != null) parts.push(`Spent: ${this.filters.spent.min || ""}-${this.filters.spent.max || ""}`);
-        if (this.filters.received.min != null || this.filters.received.max != null) parts.push(`Recv: ${this.filters.received.min || ""}-${this.filters.received.max || ""}`);
-        return parts.length ? parts.join(", ") : "No filters";
-      },
-      allVisibleSelected() {
-        const ids = this.visibleRows().map((r) => r.id);
-        return ids.length > 0 && ids.every((id) => this.selectedIds.includes(id));
-      },
-      toggleSelectAllVisible(event) {
-        const ids = this.visibleRows().map((r) => r.id);
-        if (event.target.checked) {
-          this.selectedIds = Array.from(new Set([...this.selectedIds, ...ids]));
-        } else {
-          this.selectedIds = this.selectedIds.filter((id) => !ids.includes(id));
-        }
-      },
-      deleteSelected() {
-        if (!this.selectedIds.length) return;
-        this.rows = this.rows.filter((r) => !this.selectedIds.includes(r.id));
-        this.selectedIds = [];
-        this.pagination.page = Math.min(this.pagination.page, this.totalPages());
-      },
-      exportSelected() {
-        if (!this.selectedIds.length) return;
-        console.log("Exporting rows", this.selectedIds);
+      prevStep() {
+        this.currentStep = Math.max(0, this.currentStep - 1);
       },
     };
   }
