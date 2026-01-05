@@ -1,0 +1,54 @@
+{% extends "fincore/base.html" %}
+{% block title %}Import Review · Fincore{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <div>
+    <h1 class="text-lg font-semibold text-slate-900">Import Review</h1>
+    <p class="text-sm text-slate-500">Review staged CSV data before committing.</p>
+  </div>
+
+  <div class="rounded-lg border border-slate-200 bg-white p-4">
+    <dl class="grid gap-3 text-sm sm:grid-cols-2">
+      <div>
+        <dt class="text-xs font-semibold text-slate-500">Batch</dt>
+        <dd class="text-slate-900">#{{ batch.id }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-semibold text-slate-500">Filename</dt>
+        <dd class="text-slate-900">{{ batch.filename }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-semibold text-slate-500">Account</dt>
+        <dd class="text-slate-900">{{ batch.account.name }} ({{ batch.account.account_type }})</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-semibold text-slate-500">Status</dt>
+        <dd class="text-slate-900">{{ batch.status }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  {% if batch.status == "validated" %}
+    <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">
+      <p class="mb-3">This batch is ready to commit. All rows passed staging validation.</p>
+      <form method="post" action="{% url 'fincore:import_commit' batch.id %}">
+        {% csrf_token %}
+        <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Commit import</button>
+      </form>
+    </div>
+  {% elif batch.status == "imported" %}
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+      This batch has been committed.
+    </div>
+  {% elif batch.status == "failed" %}
+    <div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+      {{ batch.error_message|default:"Import failed. Check the staged rows for errors." }}
+    </div>
+  {% else %}
+    <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      Review UI goes here. This page will list rows, errors, and allow commit or rollback actions.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

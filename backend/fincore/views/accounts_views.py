@@ -1,5 +1,7 @@
 import json
 
+from django.db.models import DecimalField, Max, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from fincore.models import Account
@@ -18,6 +20,13 @@ def account_table(request):
     qs = Account.objects.order_by("name")
     if not show_archived:
         qs = qs.filter(is_active=True)
+    qs = qs.annotate(
+        balance=Coalesce(
+            Sum("transactions__amount"),
+            0,
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        )
+    ).annotate(last_activity=Max("transactions__date"))
     return render(
         request,
         "fincore/accounts/table_partial.html",

@@ -1,0 +1,9 @@
+<div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+  <div class="flex items-center justify-between gap-2">
+    <div>
+      <p class="font-semibold">Import staged successfully.</p>
+      <p class="text-xs text-emerald-700">{{ total_rows }} row{{ total_rows|pluralize }} validated for {{ batch.account.name }}.</p>
+    </div>
+    <a class="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700" href="{% url 'fincore:import_review' batch.id %}">Review import</a>
+  </div>
+</div>

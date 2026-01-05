@@ -1,0 +1,48 @@
+{% extends "fincore/base.html" %}
+{% block title %}{{ account.name }} Imports · Fincore{% endblock %}
+
+{% block content %}
+<div class="space-y-4 flex flex-col h-full">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-lg font-semibold text-slate-900">Imports for {{ account.name }}</h1>
+      <p class="text-sm text-slate-500">Review staged or completed CSV batches for this account.</p>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <table class="min-w-full text-sm text-slate-800">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+        <tr>
+          <th class="py-2 px-3 text-left">Batch</th>
+          <th class="py-2 px-3 text-left">Filename</th>
+          <th class="py-2 px-3 text-left">Status</th>
+          <th class="py-2 px-3 text-left">Created</th>
+          <th class="py-2 px-3 text-right">Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200">
+        {% if batches %}
+          {% for batch in batches %}
+            <tr class="hover:bg-slate-50">
+              <td class="px-3 py-2">#{{ batch.id }}</td>
+              <td class="px-3 py-2 text-slate-600">{{ batch.filename }}</td>
+              <td class="px-3 py-2">
+                <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{{ batch.status }}</span>
+              </td>
+              <td class="px-3 py-2 text-slate-600">{{ batch.uploaded_at|date:"m/d/Y" }}</td>
+              <td class="px-3 py-2 text-right">
+                <a class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50" href="{% url 'fincore:import_review' batch.id %}">Review</a>
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">No import batches for this account.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

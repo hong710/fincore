@@ -1,4 +1,5 @@
 from django.db import models
+from .account import Account
 
 
 class ImportBatch(models.Model):
@@ -12,6 +13,13 @@ class ImportBatch(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="pending")
     filename = models.CharField(max_length=255)
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="import_batches",
+    )
     error_message = models.TextField(blank=True)
 
     class Meta:

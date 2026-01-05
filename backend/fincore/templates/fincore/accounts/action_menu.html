@@ -34,6 +34,26 @@
     >
       Edit
     </button>
+    <a
+      href="{% url 'fincore:account_imports' account.id %}"
+      class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+      @click="openId = null"
+    >
+      Review imports
+    </a>
+    {% if account.is_active %}
+      <a
+        href="{% url 'fincore:transaction_list' %}?import_account={{ account.id }}"
+        class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+        @click="openId = null"
+      >
+        Import CSV
+      </a>
+    {% else %}
+      <span class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-400 cursor-not-allowed">
+        Import CSV
+      </span>
+    {% endif %}
     <button
       type="button"
       class="w-full rounded-md px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
