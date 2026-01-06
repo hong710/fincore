@@ -57,6 +57,43 @@
               </th>
               <th class="py-1.5 px-3 text-left align-top">
                 <div class="flex items-center gap-2">
+                  <span class="text-sm text-slate-700">Payee</span>
+                  <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
+                    <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('payee') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
+                      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('payee') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
+                        <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
+                      </svg>
+                    </button>
+                    <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-64 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
+                      <div class="relative">
+                        <input type="text" placeholder="Search payee" class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="filters.payee.search">
+                      </div>
+                      <div class="flex items-center gap-2 text-xs text-slate-600">
+                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="selectAll('payee')">Select all</button>
+                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="unselectAll('payee')">Unselect all</button>
+                      </div>
+                      <div class="max-h-40 space-y-1 overflow-y-auto">
+                        <template x-for="opt in filteredPayeeOptions()" :key="opt">
+                          <label class="flex items-center gap-2 text-xs text-slate-700">
+                            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.payee">
+                            <span x-text="opt"></span>
+                          </label>
+                        </template>
+                      </div>
+                      <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
+                        <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('payee','asc')">Sort A→Z</button>
+                        <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('payee','desc')">Sort Z→A</button>
+                      </div>
+                      <div class="flex justify-end gap-2 pt-1">
+                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('payee'); open=false">Cancel</button>
+                        <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('payee'); open=false">Apply</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </th>
+              <th class="py-1.5 px-3 text-left align-top">
+                <div class="flex items-center gap-2">
                   <span class="text-sm text-slate-700">Description</span>
                   <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
                     <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('description') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
@@ -94,36 +131,36 @@
               </th>
               <th class="py-1.5 px-3 text-left align-top">
                 <div class="flex items-center gap-2">
-                  <span class="text-sm text-slate-700">Categories</span>
+                  <span class="text-sm text-slate-700">Kind</span>
                   <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                    <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('category') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('category') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
+                    <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('kind') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
+                      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('kind') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
                         <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
                       </svg>
                     </button>
                     <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-64 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
                       <div class="relative">
-                        <input type="text" placeholder="Search category" class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="filters.category.search">
+                        <input type="text" placeholder="Search kind" class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="filters.kind.search">
                       </div>
                       <div class="flex items-center gap-2 text-xs text-slate-600">
-                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="selectAll('category')">Select all</button>
-                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="unselectAll('category')">Unselect all</button>
+                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="selectAll('kind')">Select all</button>
+                        <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="unselectAll('kind')">Unselect all</button>
                       </div>
                       <div class="max-h-40 space-y-1 overflow-y-auto">
-                        <template x-for="opt in filteredCategoryOptions()" :key="opt">
+                        <template x-for="opt in filteredKindOptions()" :key="opt">
                           <label class="flex items-center gap-2 text-xs text-slate-700">
-                            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.category">
+                            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.kind">
                             <span x-text="opt"></span>
                           </label>
                         </template>
                       </div>
                       <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                        <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('category','asc')">Sort A→Z</button>
-                        <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('category','desc')">Sort Z→A</button>
+                        <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('kind','asc')">Sort A→Z</button>
+                        <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('kind','desc')">Sort Z→A</button>
                       </div>
                       <div class="flex justify-end gap-2 pt-1">
-                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('category'); open=false">Cancel</button>
-                        <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('category'); open=false">Apply</button>
+                        <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('kind'); open=false">Cancel</button>
+                        <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('kind'); open=false">Apply</button>
                       </div>
                     </div>
                   </div>
@@ -189,15 +226,16 @@
           <tbody class="divide-y divide-slate-200">
             <template x-if="filteredAndSortedRows().length === 0">
               <tr>
-                <td colspan="7" class="px-3 py-6 text-center text-sm text-slate-500">No data available</td>
+                <td colspan="8" class="px-3 py-6 text-center text-sm text-slate-500">No data available</td>
               </tr>
             </template>
             <template x-for="(row, idx) in visibleRows()" :key="row.id">
               <tr class="hover:bg-slate-50 transition-colors">
                 <td class="py-1.5 px-3 whitespace-nowrap text-xs text-slate-600" x-text="(pagination.page - 1) * pagination.pageSize + idx + 1"></td>
                 <td class="py-1.5 px-3 whitespace-nowrap text-slate-800" x-text="row.date"></td>
+                <td class="py-1.5 px-3 whitespace-nowrap text-slate-800" x-text="row.payee"></td>
                 <td class="py-1.5 px-3 whitespace-nowrap font-medium text-slate-800" x-text="row.description"></td>
-                <td class="py-1.5 px-3 whitespace-nowrap text-slate-800" x-text="row.category"></td>
+                <td class="py-1.5 px-3 whitespace-nowrap text-slate-800" x-text="row.kind"></td>
                 <td class="py-1.5 px-3 whitespace-nowrap text-slate-800" x-text="row.spentDisplay"></td>
                 <td class="py-1.5 px-3 whitespace-nowrap text-slate-800" x-text="row.receivedDisplay"></td>
                 <td class="py-1.5 px-3 whitespace-nowrap text-right text-sm font-medium"><button type="button" class="text-indigo-600 hover:text-indigo-700">Delete</button></td>
@@ -235,60 +273,72 @@
   function tableDemo() {
     return {
       rows: [
-        { id: 1, date: "2024-10-12", description: "Client Invoice", category: "Income", spent: 0, received: 3200 },
-        { id: 2, date: "2024-10-11", description: "Office Supplies", category: "Expense", spent: 180, received: 0 },
-        { id: 3, date: "2024-10-10", description: "Subscription", category: "Expense", spent: 45, received: 0 },
-        { id: 4, date: "2024-10-09", description: "Consulting Revenue", category: "Income", spent: 0, received: 1250 },
-        { id: 5, date: "2024-10-09", description: "Bank Transfer", category: "Transfer", spent: 0, received: 500 },
-        { id: 6, date: "2024-10-08", description: "Travel", category: "Expense", spent: 320, received: 0 },
+        { id: 1, date: "2024-10-12", payee: "Client ABC", description: "Client Invoice", kind: "Income", spent: 0, received: 3200 },
+        { id: 2, date: "2024-10-11", payee: "Staples", description: "Office Supplies", kind: "Expense", spent: 180, received: 0 },
+        { id: 3, date: "2024-10-10", payee: "Stripe", description: "Subscription", kind: "Expense", spent: 45, received: 0 },
+        { id: 4, date: "2024-10-09", payee: "Client ABC", description: "Consulting Revenue", kind: "Income", spent: 0, received: 1250 },
+        { id: 5, date: "2024-10-09", payee: "Transfer", description: "Bank Transfer", kind: "Transfer", spent: 0, received: 500 },
+        { id: 6, date: "2024-10-08", payee: "Delta", description: "Travel", kind: "Expense", spent: 320, received: 0 },
       ].map((r) => ({ ...r, spentDisplay: r.spent ? `-$${r.spent.toLocaleString()}` : "-", receivedDisplay: r.received ? `+$${r.received.toLocaleString()}` : "-" })),
       filters: {
         date: { range: { type: "all", key: "", from: "", to: "" } },
+        payee: { selected: [], search: "" },
         description: { selected: [], search: "" },
-        category: { selected: [], search: "" },
+        kind: { selected: [], search: "" },
         spent: { min: null, max: null },
         received: { min: null, max: null },
       },
       draft: {
         dateRange: { type: "all", key: "", from: "", to: "" },
+        payee: [],
         description: [],
-        category: [],
+        kind: [],
         spent: { min: null, max: null },
         received: { min: null, max: null },
       },
       sort: { column: null, direction: null },
       pagination: { page: 1, pageSize: 25, sizes: [25, 50, 100] },
+      uniquePayees() {
+        return Array.from(new Set(this.rows.map((r) => r.payee))).sort();
+      },
       uniqueDescriptions() {
         return Array.from(new Set(this.rows.map((r) => r.description))).sort();
       },
-      uniqueCategories() {
-        return Array.from(new Set(this.rows.map((r) => r.category))).sort();
+      uniqueKinds() {
+        return Array.from(new Set(this.rows.map((r) => r.kind))).sort();
+      },
+      filteredPayeeOptions() {
+        return this.uniquePayees().filter((p) => p.toLowerCase().includes(this.filters.payee.search.toLowerCase()));
       },
       filteredDescriptionOptions() {
         return this.uniqueDescriptions().filter((d) => d.toLowerCase().includes(this.filters.description.search.toLowerCase()));
       },
-      filteredCategoryOptions() {
-        return this.uniqueCategories().filter((c) => c.toLowerCase().includes(this.filters.category.search.toLowerCase()));
+      filteredKindOptions() {
+        return this.uniqueKinds().filter((k) => k.toLowerCase().includes(this.filters.kind.search.toLowerCase()));
       },
       selectAll(type) {
+        if (type === "payee") this.draft.payee = [...this.uniquePayees()];
         if (type === "description") this.draft.description = [...this.uniqueDescriptions()];
-        if (type === "category") this.draft.category = [...this.uniqueCategories()];
+        if (type === "kind") this.draft.kind = [...this.uniqueKinds()];
       },
       unselectAll(type) {
+        if (type === "payee") this.draft.payee = [];
         if (type === "description") this.draft.description = [];
-        if (type === "category") this.draft.category = [];
+        if (type === "kind") this.draft.kind = [];
       },
       applyDraft(type) {
         if (type === "date") this.filters.date.range = { ...this.draft.dateRange };
+        if (type === "payee") this.filters.payee.selected = [...this.draft.payee];
         if (type === "description") this.filters.description.selected = [...this.draft.description];
-        if (type === "category") this.filters.category.selected = [...this.draft.category];
+        if (type === "kind") this.filters.kind.selected = [...this.draft.kind];
         if (type === "spent") { this.filters.spent.min = this.draft.spent.min || null; this.filters.spent.max = this.draft.spent.max || null; }
         if (type === "received") { this.filters.received.min = this.draft.received.min || null; this.filters.received.max = this.draft.received.max || null; }
       },
       resetDraft(type) {
         if (type === "date") this.draft.dateRange = { ...this.filters.date.range };
+        if (type === "payee") this.draft.payee = [...this.filters.payee.selected];
         if (type === "description") this.draft.description = [...this.filters.description.selected];
-        if (type === "category") this.draft.category = [...this.filters.category.selected];
+        if (type === "kind") this.draft.kind = [...this.filters.kind.selected];
         if (type === "spent") this.draft.spent = { min: this.filters.spent.min, max: this.filters.spent.max };
         if (type === "received") this.draft.received = { min: this.filters.received.min, max: this.filters.received.max };
       },
@@ -348,15 +398,16 @@
             if (range.start && d < range.start) dateOk = false;
             if (range.end && d > range.end) dateOk = false;
           }
+          const payeeOk = this.filters.payee.selected.length === 0 || this.filters.payee.selected.includes(row.payee);
           const descOk = this.filters.description.selected.length === 0 || this.filters.description.selected.includes(row.description);
-          const catOk = this.filters.category.selected.length === 0 || this.filters.category.selected.includes(row.category);
+          const kindOk = this.filters.kind.selected.length === 0 || this.filters.kind.selected.includes(row.kind);
           const spentOk =
             (this.filters.spent.min == null || row.spent >= this.filters.spent.min) &&
             (this.filters.spent.max == null || row.spent <= this.filters.spent.max);
           const receivedOk =
             (this.filters.received.min == null || row.received >= this.filters.received.min) &&
             (this.filters.received.max == null || row.received <= this.filters.received.max);
-          return dateOk && descOk && catOk && spentOk && receivedOk;
+          return dateOk && payeeOk && descOk && kindOk && spentOk && receivedOk;
         });
 
         if (this.sort.column) {
@@ -384,8 +435,9 @@
       },
       filterActive(key) {
         if (key === "date") return this.filters.date.range.type !== "all";
+        if (key === "payee") return this.filters.payee.selected.length > 0;
         if (key === "description") return this.filters.description.selected.length > 0;
-        if (key === "category") return this.filters.category.selected.length > 0;
+        if (key === "kind") return this.filters.kind.selected.length > 0;
         if (key === "spent") return this.filters.spent.min != null || this.filters.spent.max != null;
         if (key === "received") return this.filters.received.min != null || this.filters.received.max != null;
         return false;
@@ -396,8 +448,9 @@
           if (this.filters.date.range.type === "quick") parts.push(`Date: ${this.filters.date.range.key}`);
           if (this.filters.date.range.type === "custom") parts.push(`Date: ${this.filters.date.range.from || ""}→${this.filters.date.range.to || ""}`);
         }
+        if (this.filters.payee.selected.length) parts.push(`Payee: ${this.filters.payee.selected.length}`);
         if (this.filters.description.selected.length) parts.push(`Desc: ${this.filters.description.selected.length}`);
-        if (this.filters.category.selected.length) parts.push(`Cat: ${this.filters.category.selected.length}`);
+        if (this.filters.kind.selected.length) parts.push(`Kind: ${this.filters.kind.selected.length}`);
         if (this.filters.spent.min != null || this.filters.spent.max != null) parts.push(`Spent: ${this.filters.spent.min || ""}-${this.filters.spent.max || ""}`);
         if (this.filters.received.min != null || this.filters.received.max != null) parts.push(`Recv: ${this.filters.received.min || ""}-${this.filters.received.max || ""}`);
         return parts.length ? parts.join(", ") : "No filters";

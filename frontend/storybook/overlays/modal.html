@@ -88,6 +88,15 @@
         <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="uploadOpen = false; resetWizard()" aria-label="Close">✕</button>
       </div>
       <div class="p-4 space-y-4">
+        <div x-show="importDone" x-cloak class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <p class="font-semibold">Import staged successfully.</p>
+              <p class="text-xs text-emerald-700" x-text="`${importCount} rows validated for ${selectedAccountLabel || 'selected account'}.`"></p>
+            </div>
+            <button type="button" class="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Review import</button>
+          </div>
+        </div>
         <div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
           <template x-for="(label, index) in steps" :key="index">
             <div class="flex items-center gap-2">
@@ -193,13 +202,17 @@
         </div>
       </div>
       <div class="flex items-center justify-between border-t border-slate-200 p-4">
-        <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="uploadOpen = false; resetWizard()">Cancel</button>
+        <div class="flex items-center gap-2 text-xs text-slate-600" x-show="isSubmitting" x-cloak>
+          <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600"></span>
+          <span>Uploading and validating...</span>
+        </div>
+        <button class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-60" :disabled="isSubmitting" @click="uploadOpen = false; resetWizard()">Cancel</button>
         <div class="flex items-center gap-2">
           <template x-if="currentStep < steps.length -1">
-            <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="!canNext()" @click="nextStep()">Next</button>
+            <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="isSubmitting || !canNext()" @click="nextStep()">Next</button>
           </template>
           <template x-if="currentStep === steps.length -1">
-            <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="!canConfirm()" @click="uploadOpen=false; resetWizard()">Confirm import</button>
+            <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60" :disabled="importDone || isSubmitting || !canConfirm()" @click="isSubmitting = true; setTimeout(() => { isSubmitting = false; importDone = true; }, 900)">Confirm import</button>
           </template>
         </div>
       </div>
@@ -275,7 +288,10 @@
       steps: ["Upload", "Map", "Preview", "Account", "Confirm"],
       currentStep: 0,
       fileName: "",
+      isSubmitting: false,
+      importDone: false,
       modalSize: "md",
+      importCount: 120,
       columns: cols,
       mappings: { ...defaultMap },
       previewRows: sampleRows,
@@ -285,9 +301,15 @@
         { id: "acc-db-1", name: "Debit Card", type: "debit_card" },
       ],
       selectedAccount: "",
+      get selectedAccountLabel() {
+        const account = this.accounts.find((acct) => acct.id === this.selectedAccount);
+        return account ? `${account.name} (${account.type})` : "";
+      },
       resetWizard() {
         this.currentStep = 0;
         this.fileName = "";
+        this.isSubmitting = false;
+        this.importDone = false;
         this.mappings = { ...defaultMap };
         this.selectedAccount = "";
         this.modalSize = "md";

@@ -122,7 +122,7 @@
         hx-post="{% url 'fincore:account_update' %}"
         hx-target="#account-edit-errors"
         hx-swap="innerHTML"
-        @htmx:after-request.camel="if ($event.detail.xhr.status === 204) editOpen = false"
+        hx-on:htmx:afterRequest="if (event.detail.successful) { editOpen = false }"
       >
         <div class="space-y-4 p-4 text-sm text-slate-800">
           <input type="hidden" name="account_id" x-model="editForm.id">
