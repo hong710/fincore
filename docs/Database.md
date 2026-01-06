@@ -12,7 +12,7 @@
   - payee is free text (other party); direction is determined by kind/amount, not payee
   - is_imported true only for CSV-created rows; every imported row links to an import_batch
 - **TransferGroup**: Pairs transfer transactions; sum per group must be zero.
-- **ImportBatch**: One CSV upload; status `pending|validated|imported|failed`. Includes the target `account_id` selected by the user.
+- **ImportBatch**: One CSV upload; status `pending|validated|imported|failed`.
 - **ImportRow**: Staged CSV rows with mapped fields + validation errors; never touch Transaction until batch commits.
 
 ## ERD (conceptual)
@@ -64,7 +64,7 @@ Details:
 - Inactive accounts remain visible in history/reports and affect balances/P&L; they are not selectable for new transactions/transfers/CSV imports.
 - Transfers must keep referenced accounts; cascade deletes are forbidden.
 - **import_batch**
-  - id PK, filename, status (`pending|validated|imported|failed`), account_id (FK), error_message?, uploaded_at
+  - id PK, filename, status (`pending|validated|imported|failed`), error_message?, uploaded_at
 - **import_row**
   - id PK, batch_id FK, raw_row (JSON), mapped (JSON), errors (JSON), created_at
 

@@ -225,7 +225,6 @@
                   <th class="py-2 px-3 text-left">Type</th>
                   <th class="py-2 px-3 text-left">Institution</th>
                   <th class="py-2 px-3 text-left">Status</th>
-                  <th class="py-2 px-3 text-right">Balance</th>
                   <th class="py-2 px-3 text-left w-32">Actions</th>
                 </tr>
               </thead>
@@ -235,12 +234,6 @@
                   <td class="px-3 py-2 text-slate-600">Checking</td>
                   <td class="px-3 py-2 text-slate-600">ACME Bank</td>
                   <td class="px-3 py-2"><span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span></td>
-                  <td class="px-3 py-2 text-right">
-                    <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                      <span class="tabular-nums">$12,450.00</span>
-                      <span class="text-slate-500">(03/14/2026)</span>
-                    </span>
-                  </td>
                   <td class="px-3 py-2 text-left">
                     <div class="relative inline-flex w-full justify-start">
                       <button
@@ -267,20 +260,6 @@
                         </button>
                         <button
                           type="button"
-                          class="w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                          @click.stop="openId = null"
-                        >
-                          Review imports
-                        </button>
-                        <button
-                          type="button"
-                          class="w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                          @click.stop="openId = null"
-                        >
-                          Import CSV
-                        </button>
-                        <button
-                          type="button"
                           class="w-full rounded-md px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
                           @click.stop="openId = null; openDelete({ id: 1, name: 'Operating Account' })"
                         >
@@ -295,12 +274,6 @@
                   <td class="px-3 py-2 text-slate-600">Checking</td>
                   <td class="px-3 py-2 text-slate-600">ACME Bank</td>
                   <td class="px-3 py-2"><span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Pending</span></td>
-                  <td class="px-3 py-2 text-right">
-                    <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                      <span class="tabular-nums">-$842.00</span>
-                      <span class="text-slate-500">(01/08/2026)</span>
-                    </span>
-                  </td>
                   <td class="px-3 py-2 text-left">
                     <div class="relative inline-flex w-full justify-start">
                       <button
@@ -325,16 +298,6 @@
                         >
                           Edit
                         </button>
-                        <button
-                          type="button"
-                          class="w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                          @click.stop="openId = null"
-                        >
-                          Review imports
-                        </button>
-                        <span class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-400 cursor-not-allowed">
-                          Import CSV
-                        </span>
                         <button
                           type="button"
                           class="w-full rounded-md px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
