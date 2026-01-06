@@ -216,8 +216,7 @@
               </div>
             </div>
           </div>
-          <div class="overflow-x-auto flex-1 min-h-[60vh]">
-            <div class="overflow-y-auto h-full min-h-[60vh]">
+          <div class="overflow-auto flex-none h-[calc(25*2rem+2.5rem)]">
             <table class="min-w-full text-sm text-slate-800 h-full">
               <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
                 <tr class="sticky top-0 bg-slate-50">
@@ -439,23 +438,22 @@
                   </tr>
                 </template>
                 <template x-for="(row, idx) in visibleRows()" :key="row.id">
-                  <tr class="align-top hover:bg-slate-50 transition-colors">
-                    <td class="px-4 py-1.5 whitespace-nowrap">
+                  <tr class="h-8 align-top hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-0.5 whitespace-nowrap">
                       <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="row.id" x-model="selectedIds">
                     </td>
-                    <td class="px-4 py-1.5 whitespace-nowrap text-xs text-slate-600" x-text="(pagination.page - 1) * pagination.pageSize + idx + 1"></td>
-                    <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.date"></td>
-                    <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.payee || '-'"></td>
-                    <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.description"></td>
-                    <td class="px-4 py-1.5 whitespace-nowrap" x-text="row.category"></td>
-                    <td class="px-4 py-1.5 whitespace-nowrap text-right" :class="row.spent ? 'text-rose-600' : 'text-slate-500'" x-text="row.spent ? `-$${row.spent.toLocaleString()}` : '-'"></td>
-                    <td class="px-4 py-1.5 whitespace-nowrap text-right" :class="row.received ? 'text-emerald-600' : 'text-slate-500'" x-text="row.received ? `+$${row.received.toLocaleString()}` : '-'"></td>
-                    <td class="px-4 py-1.5 whitespace-nowrap text-right"><button class="text-indigo-600 hover:text-indigo-700">Delete</button></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap text-xs text-slate-600" x-text="(pagination.page - 1) * pagination.pageSize + idx + 1"></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap" x-text="row.date"></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap" x-text="row.payee || '-'"></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap" x-text="row.description"></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap" x-text="row.category"></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap text-right" :class="row.spent ? 'text-rose-600' : 'text-slate-500'" x-text="row.spent ? `-$${row.spent.toLocaleString()}` : '-'"></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap text-right" :class="row.received ? 'text-emerald-600' : 'text-slate-500'" x-text="row.received ? `+$${row.received.toLocaleString()}` : '-'"></td>
+                    <td class="px-4 py-0.5 whitespace-nowrap text-right"><button class="text-indigo-600 hover:text-indigo-700">Delete</button></td>
                   </tr>
                 </template>
               </tbody>
             </table>
-            </div>
           </div>
         </div>
       </main>
