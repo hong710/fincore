@@ -5,12 +5,13 @@
 
 <div
   class="flex h-full flex-col space-y-4"
-  @htmx:after-swap.window="loadOptions()"
+  @htmx:after-swap.window="loadOptions(); selectedIds = []"
   x-data="{
     payload: JSON.parse(document.getElementById('txn-filter-payload').textContent),
     payeeOptions: [],
     descriptionOptions: [],
     kindOptions: [],
+    selectedIds: [],
     page: 1,
     pageSize: 25,
     search: '',
@@ -227,7 +228,13 @@
       <table class="min-w-full table-auto text-sm text-slate-800">
         <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
           <tr class="sticky top-0 bg-slate-50">
-            <th class="py-1.5 px-3 text-left align-top w-10"></th>
+            <th class="py-1.5 px-3 text-left align-top w-10">
+              <input type="checkbox" 
+                class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                :checked="selectedIds.length === {{ page_obj.object_list|length }} && selectedIds.length > 0"
+                :indeterminate="selectedIds.length > 0 && selectedIds.length < {{ page_obj.object_list|length }}"
+                @click="selectedIds.length === {{ page_obj.object_list|length }} ? selectedIds = [] : selectedIds = [{% for txn in page_obj.object_list %}{{ txn.id }}{% if not forloop.last %},{% endif %}{% endfor %}]" />
+            </th>
             <th class="py-1.5 px-3 text-left align-top w-12">#</th>
             <th class="py-1.5 px-3 text-left align-top">
               <div class="flex items-center gap-2">
@@ -448,9 +455,11 @@
           {% if page_obj.object_list %}
             {% for txn in page_obj.object_list %}
               {% with amount=txn.amount %}
-              <tr class="h-8 hover:bg-slate-50 transition-colors">
+              <tr class="h-8 hover:bg-slate-50 transition-colors" :class="selectedIds.includes({{ txn.id }}) && 'bg-indigo-50'">
                 <td class="px-4 py-0.5 whitespace-nowrap">
-                  <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                  <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+                    :checked="selectedIds.includes({{ txn.id }})"
+                    @click="selectedIds.includes({{ txn.id }}) ? selectedIds = selectedIds.filter(id => id !== {{ txn.id }}) : selectedIds.push({{ txn.id }})" />
                 </td>
                 <td class="px-4 py-0.5 whitespace-nowrap text-xs text-slate-600">{{ forloop.counter0|add:page_obj.start_index }}</td>
                 <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.date }}</td>
