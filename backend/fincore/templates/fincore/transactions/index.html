@@ -13,11 +13,64 @@
         <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5 21 6m0 0-4.5-4.5M21 6h-6a2.25 2.25 0 0 0-2.25 2.25V21M8.25 9.75H6.75A2.25 2.25 0 0 0 4.5 12v6a2.25 2.25 0 0 0 2.25 2.25h6a2.25 2.25 0 0 0 2.25-2.25v-1.5" /></svg>
         Upload .CSV
       </button>
-      <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">New Transaction</button>
+      <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" data-hs-overlay="#new-transaction-modal">New Transaction</button>
     </div>
   </div>
 
   <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="transactions-table" hx-get="{% url 'fincore:transaction_table' %}" hx-trigger="load"></div>
+</div>
+
+<div id="new-transaction-modal" class="hs-overlay hidden fixed inset-0 z-50 overflow-y-auto" tabindex="-1">
+  <div class="flex min-h-full items-center justify-center p-4">
+    <div class="w-full max-w-xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">New Transaction</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" data-hs-overlay="#new-transaction-modal" aria-label="Close">✕</button>
+      </div>
+      <form class="space-y-4 p-4">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="space-y-1 text-xs font-medium text-slate-600">
+            <span>Date</span>
+            <input type="date" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="space-y-1 text-xs font-medium text-slate-600">
+            <span>Account</span>
+            <select class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="">Choose account</option>
+              {% for acct in accounts %}
+                <option value="{{ acct.id }}">{{ acct.name }} ({{ acct.account_type }})</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="space-y-1 text-xs font-medium text-slate-600">
+            <span>Kind</span>
+            <select class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+              <option value="transfer">Transfer</option>
+              <option value="opening">Opening</option>
+            </select>
+          </label>
+          <label class="space-y-1 text-xs font-medium text-slate-600">
+            <span>Amount</span>
+            <input type="number" step="0.01" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="0.00">
+          </label>
+        </div>
+        <label class="space-y-1 text-xs font-medium text-slate-600">
+          <span>Payee</span>
+          <input type="text" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional">
+        </label>
+        <label class="space-y-1 text-xs font-medium text-slate-600">
+          <span>Description</span>
+          <textarea rows="3" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional"></textarea>
+        </label>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" data-hs-overlay="#new-transaction-modal">Cancel</button>
+          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white opacity-60" disabled>Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Import CSV wizard modal -->
@@ -27,7 +80,7 @@
   x-on:import:staged.window="importDone = true"
   x-cloak
   x-show="uploadOpen"
-  class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+  class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
   role="dialog"
   aria-modal="true"
 >
@@ -74,9 +127,20 @@
       </div>
 
       <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 1">
+        <h3 class="text-sm font-semibold text-slate-800">2) Select account</h3>
+        <p class="text-xs text-slate-500">Required. Account type guides validation (credit_card, debit_card, bank).</p>
+        <select class="w-64 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="selectedAccount">
+          <option value="">Choose account</option>
+          <template x-for="acct in accounts" :key="acct.id">
+            <option :value="acct.id" x-text="`${acct.name} (${acct.type})`"></option>
+          </template>
+        </select>
+      </div>
+
+      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 2">
         <div class="flex items-start justify-between">
           <div>
-            <h3 class="text-sm font-semibold text-slate-800">2) Column mapping</h3>
+            <h3 class="text-sm font-semibold text-slate-800">3) Column mapping</h3>
             <p class="text-xs text-slate-500">Map exactly one column to Date, Description, Amount. Everything else → Ignore. Kind/Category/Transfer/Account mappings are forbidden.</p>
           </div>
           <p class="text-xs font-semibold" :class="mappingComplete() ? 'text-emerald-600' : 'text-amber-600'" x-text="mappingComplete() ? 'Ready' : 'Incomplete'"></p>
@@ -109,8 +173,8 @@
         </div>
       </div>
 
-      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 2">
-        <h3 class="text-sm font-semibold text-slate-800">3) Preview (first 10 rows)</h3>
+      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 3">
+        <h3 class="text-sm font-semibold text-slate-800">4) Preview (first 10 rows)</h3>
         <div class="overflow-auto rounded border border-slate-200 bg-white">
           <table class="min-w-full text-xs">
             <thead class="bg-slate-50 text-slate-600">
@@ -131,17 +195,6 @@
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-3" x-show="currentStep === 3">
-        <h3 class="text-sm font-semibold text-slate-800">4) Select account</h3>
-        <p class="text-xs text-slate-500">Required. Account type guides validation (credit_card, debit_card, bank).</p>
-        <select class="w-64 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="selectedAccount">
-          <option value="">Choose account</option>
-          <template x-for="acct in accounts" :key="acct.id">
-            <option :value="acct.id" x-text="`${acct.name} (${acct.type})`"></option>
-          </template>
-        </select>
       </div>
 
       <div class="rounded-md border border-slate-200 bg-slate-50 p-4 space-y-2" x-show="currentStep === 4">
@@ -205,7 +258,7 @@
     };
 
     return {
-      steps: ["Upload", "Map", "Preview", "Account", "Confirm"],
+      steps: ["Upload", "Account", "Map", "Preview", "Confirm"],
       currentStep: 0,
       fileName: "",
       fileError: "",
@@ -323,8 +376,8 @@
       },
       canNext() {
         if (this.currentStep === 0) return !!this.fileName;
-        if (this.currentStep === 1) return this.mappingComplete();
-        if (this.currentStep === 3) return !!this.selectedAccount;
+        if (this.currentStep === 1) return !!this.selectedAccount;
+        if (this.currentStep === 2) return this.mappingComplete();
         return true;
       },
       canConfirm() {

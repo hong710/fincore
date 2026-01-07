@@ -5,7 +5,8 @@
 
 <div
   class="flex h-full flex-col space-y-4"
-  @htmx:after-swap.window="loadOptions(); selectedIds = []"
+  @htmx:before-request.window="rememberSearchFocus()"
+  @htmx:after-swap.window="loadOptions(); selectedIds = []; restoreSearchFocus()"
   x-data="{
     payload: JSON.parse(document.getElementById('txn-filter-payload').textContent),
     payeeOptions: [],
@@ -20,21 +21,20 @@
     payeeSearch: '',
     descriptionSearch: '',
     kindSearch: '',
+    searchHadFocus: false,
     filters: {
       date: { range: { type: 'all', key: '', from: '', to: '' } },
       payee: { selected: [] },
       description: { selected: [] },
       kind: { selected: [] },
-      spent: { min: '', max: '' },
-      received: { min: '', max: '' }
+      amount: { type: 'all', min: '', max: '' }
     },
     draft: {
       dateRange: { type: 'all', key: '', from: '', to: '' },
       payee: [],
       description: [],
       kind: [],
-      spent: { min: '', max: '' },
-      received: { min: '', max: '' }
+      amount: { type: 'all', min: '', max: '' }
     },
     init() {
       this.loadOptions();
@@ -55,8 +55,11 @@
       this.filters.payee.selected = ensureArray(this.payload.payee);
       this.filters.description.selected = ensureArray(this.payload.description);
       this.filters.kind.selected = ensureArray(this.payload.kind);
-      this.filters.spent = { min: this.payload.spent_min || '', max: this.payload.spent_max || '' };
-      this.filters.received = { min: this.payload.received_min || '', max: this.payload.received_max || '' };
+      this.filters.amount = {
+        type: this.payload.amount_type || 'all',
+        min: this.payload.amount_min || '',
+        max: this.payload.amount_max || ''
+      };
       this.resetDraftAll();
     },
     loadOptions() {
@@ -64,13 +67,23 @@
       this.descriptionOptions = JSON.parse(document.getElementById('txn-description-options').textContent);
       this.kindOptions = JSON.parse(document.getElementById('txn-kind-options').textContent);
     },
+    rememberSearchFocus() {
+      this.searchHadFocus = document.activeElement?.id === 'txn-search';
+    },
+    restoreSearchFocus() {
+      if (!this.searchHadFocus) return;
+      const input = document.getElementById('txn-search');
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      this.searchHadFocus = false;
+    },
     resetDraftAll() {
       this.draft.dateRange = { ...this.filters.date.range };
       this.draft.payee = [...this.filters.payee.selected];
       this.draft.description = [...this.filters.description.selected];
       this.draft.kind = [...this.filters.kind.selected];
-      this.draft.spent = { ...this.filters.spent };
-      this.draft.received = { ...this.filters.received };
+      this.draft.amount = { ...this.filters.amount };
     },
     selectQuickRange(key) {
       this.draft.dateRange = { type: 'quick', key, from: '', to: '' };
@@ -80,8 +93,7 @@
       if (type === 'payee') this.filters.payee.selected = [...this.draft.payee];
       if (type === 'description') this.filters.description.selected = [...this.draft.description];
       if (type === 'kind') this.filters.kind.selected = [...this.draft.kind];
-      if (type === 'spent') this.filters.spent = { ...this.draft.spent };
-      if (type === 'received') this.filters.received = { ...this.draft.received };
+      if (type === 'amount') this.filters.amount = { ...this.draft.amount };
       this.submitFilters();
     },
     resetDraft(type) {
@@ -89,16 +101,14 @@
       if (type === 'payee') this.draft.payee = [...this.filters.payee.selected];
       if (type === 'description') this.draft.description = [...this.filters.description.selected];
       if (type === 'kind') this.draft.kind = [...this.filters.kind.selected];
-      if (type === 'spent') this.draft.spent = { ...this.filters.spent };
-      if (type === 'received') this.draft.received = { ...this.filters.received };
+      if (type === 'amount') this.draft.amount = { ...this.filters.amount };
     },
     clearFilter(type) {
       if (type === 'date') this.filters.date.range = { type: 'all', key: '', from: '', to: '' };
       if (type === 'payee') this.filters.payee.selected = [];
       if (type === 'description') this.filters.description.selected = [];
       if (type === 'kind') this.filters.kind.selected = [];
-      if (type === 'spent') this.filters.spent = { min: '', max: '' };
-      if (type === 'received') this.filters.received = { min: '', max: '' };
+      if (type === 'amount') this.filters.amount = { type: 'all', min: '', max: '' };
       this.resetDraft(type);
       this.submitFilters();
     },
@@ -107,8 +117,7 @@
       if (type === 'payee') return this.filters.payee.selected.length > 0;
       if (type === 'description') return this.filters.description.selected.length > 0;
       if (type === 'kind') return this.filters.kind.selected.length > 0;
-      if (type === 'spent') return this.filters.spent.min !== '' || this.filters.spent.max !== '';
-      if (type === 'received') return this.filters.received.min !== '' || this.filters.received.max !== '';
+      if (type === 'amount') return this.filters.amount.type !== 'all' || this.filters.amount.min !== '' || this.filters.amount.max !== '';
       return false;
     },
     selectAll(type) {
@@ -146,10 +155,9 @@
           else if (name === 'date_range') input.value = this.dateRangeValue();
           else if (name === 'date_from') input.value = this.filters.date.range.from;
           else if (name === 'date_to') input.value = this.filters.date.range.to;
-          else if (name === 'spent_min') input.value = this.filters.spent.min;
-          else if (name === 'spent_max') input.value = this.filters.spent.max;
-          else if (name === 'received_min') input.value = this.filters.received.min;
-          else if (name === 'received_max') input.value = this.filters.received.max;
+          else if (name === 'amount_type') input.value = this.filters.amount.type;
+          else if (name === 'amount_min') input.value = this.filters.amount.min;
+          else if (name === 'amount_max') input.value = this.filters.amount.max;
           else if (name === 'sort') input.value = this.sortField;
           else if (name === 'dir') input.value = this.sortDir;
         });
@@ -189,16 +197,16 @@
         </select>
       </label>
       <div class="relative">
-        <input name="q" type="text" class="rounded-md border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56" placeholder="Search transactions" x-model="search">
+        <input id="txn-search" name="q" type="text" class="rounded-md border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56" placeholder="Search transactions" x-model="search" hx-preserve>
         <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 5.25 5.25a7.5 7.5 0 0 0 11.4 11.4Z"/></svg>
       </div>
     </div>
     <div class="flex items-center gap-3">
       <span>Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ paginator.count }} records</span>
       <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
-        <button type="button" class="px-2 py-1 hover:bg-slate-50 {% if not page_obj.has_previous %}opacity-50 cursor-not-allowed{% endif %}" {% if page_obj.has_previous %}hx-get="{% url 'fincore:transaction_table' %}?page={{ page_obj.previous_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}"{% endif %} hx-target="#transactions-table">Prev</button>
+        <button type="submit" class="px-2 py-1 hover:bg-slate-50 {% if not page_obj.has_previous %}opacity-50 cursor-not-allowed{% endif %}" {% if page_obj.has_previous %}@click="page={{ page_obj.previous_page_number }}"{% else %}disabled{% endif %}>Prev</button>
         <span class="border-l border-r border-slate-200 px-2 py-1">{{ page_obj.number }} / {{ paginator.num_pages }}</span>
-        <button type="button" class="px-2 py-1 hover:bg-slate-50 {% if not page_obj.has_next %}opacity-50 cursor-not-allowed{% endif %}" {% if page_obj.has_next %}hx-get="{% url 'fincore:transaction_table' %}?page={{ page_obj.next_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}"{% endif %} hx-target="#transactions-table">Next</button>
+        <button type="submit" class="px-2 py-1 hover:bg-slate-50 {% if not page_obj.has_next %}opacity-50 cursor-not-allowed{% endif %}" {% if page_obj.has_next %}@click="page={{ page_obj.next_page_number }}"{% else %}disabled{% endif %}>Next</button>
       </div>
     </div>
 
@@ -206,10 +214,9 @@
     <input type="hidden" name="date_range" :value="dateRangeValue()">
     <input type="hidden" name="date_from" x-model="filters.date.range.from">
     <input type="hidden" name="date_to" x-model="filters.date.range.to">
-    <input type="hidden" name="spent_min" x-model="filters.spent.min">
-    <input type="hidden" name="spent_max" x-model="filters.spent.max">
-    <input type="hidden" name="received_min" x-model="filters.received.min">
-    <input type="hidden" name="received_max" x-model="filters.received.max">
+    <input type="hidden" name="amount_type" x-model="filters.amount.type">
+    <input type="hidden" name="amount_min" x-model="filters.amount.min">
+    <input type="hidden" name="amount_max" x-model="filters.amount.max">
     <input type="hidden" name="sort" x-model="sortField">
     <input type="hidden" name="dir" x-model="sortDir">
 
@@ -396,53 +403,55 @@
             </th>
             <th class="py-1.5 px-3 text-right align-top">
               <div class="flex items-center justify-end gap-2">
-                <span class="text-sm text-slate-700">Spent</span>
+                <span class="text-sm text-slate-700">Amount</span>
                 <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                  <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('spent') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('spent') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
+                  <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('amount') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('amount') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
                       <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
                     </svg>
                   </button>
-                  <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-56 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
-                    <div class="flex items-center gap-2">
-                      <input type="number" placeholder="Min" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.spent.min">
-                      <input type="number" placeholder="Max" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.spent.max">
+                  <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-64 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-3">
+                    <label class="space-y-1 text-xs text-slate-700">
+                      <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Type</span>
+                      <select
+                        class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                        x-model="draft.amount.type"
+                        @change="if (draft.amount.type === 'all') { draft.amount.min = ''; draft.amount.max = ''; }"
+                      >
+                        <option value="all">All</option>
+                        <option value="expense">Expense (-)</option>
+                        <option value="deposit">Deposit (+)</option>
+                      </select>
+                    </label>
+                    <div class="space-y-1 text-xs text-slate-700">
+                      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Range</p>
+                      <div class="flex items-center gap-2">
+                        <input
+                          type="number"
+                          placeholder="Min"
+                          class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                          :class="draft.amount.type === 'all' ? 'bg-slate-100 text-slate-400' : ''"
+                          :disabled="draft.amount.type === 'all'"
+                          x-model="draft.amount.min"
+                        >
+                        <input
+                          type="number"
+                          placeholder="Max"
+                          class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                          :class="draft.amount.type === 'all' ? 'bg-slate-100 text-slate-400' : ''"
+                          :disabled="draft.amount.type === 'all'"
+                          x-model="draft.amount.max"
+                        >
+                      </div>
                     </div>
                     <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                      <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('spent','asc')">Sort ↑</button>
-                      <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('spent','desc')">Sort ↓</button>
+                      <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('amount','asc')">Sort ↑</button>
+                      <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('amount','desc')">Sort ↓</button>
                     </div>
                     <div class="flex justify-end gap-2 pt-1">
-                      <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('spent'); open=false">Cancel</button>
-                      <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="clearFilter('spent'); open=false">Clear</button>
-                      <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('spent'); open=false">Apply</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </th>
-            <th class="py-1.5 px-3 text-right align-top">
-              <div class="flex items-center justify-end gap-2">
-                <span class="text-sm text-slate-700">Received</span>
-                <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
-                  <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('received') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
-                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('received') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
-                      <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
-                    </svg>
-                  </button>
-                  <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-56 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
-                    <div class="flex items-center gap-2">
-                      <input type="number" placeholder="Min" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.received.min">
-                      <input type="number" placeholder="Max" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.received.max">
-                    </div>
-                    <div class="inline-flex rounded-md border border-slate-200 text-xs text-slate-700">
-                      <button type="button" class="px-2 py-1 hover:bg-slate-50" @click="setSort('received','asc')">Sort ↑</button>
-                      <button type="button" class="border-l border-slate-200 px-2 py-1 hover:bg-slate-50" @click="setSort('received','desc')">Sort ↓</button>
-                    </div>
-                    <div class="flex justify-end gap-2 pt-1">
-                      <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('received'); open=false">Cancel</button>
-                      <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="clearFilter('received'); open=false">Clear</button>
-                      <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('received'); open=false">Apply</button>
+                      <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('amount'); open=false">Cancel</button>
+                      <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="clearFilter('amount'); open=false">Clear</button>
+                      <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('amount'); open=false">Apply</button>
                     </div>
                   </div>
                 </div>
@@ -464,13 +473,16 @@
                 <td class="px-4 py-0.5 whitespace-nowrap text-xs text-slate-600">{{ forloop.counter0|add:page_obj.start_index }}</td>
                 <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.date }}</td>
                 <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.payee|default:"-" }}</td>
-                <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.description|default:"" }}</td>
+                <td class="px-4 py-0.5 whitespace-nowrap" title="{{ txn.description|default:"" }}">{{ txn.description|default:""|truncatewords:15 }}</td>
                 <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.get_kind_display }}</td>
-                <td class="px-4 py-0.5 whitespace-nowrap text-right {% if amount < 0 %}text-rose-600{% else %}text-slate-500{% endif %}">
-                  {% if amount < 0 %}-${{ amount|floatformat:2 }}{% else %}-{% endif %}
-                </td>
-                <td class="px-4 py-0.5 whitespace-nowrap text-right {% if amount > 0 %}text-emerald-600{% else %}text-slate-500{% endif %}">
-                  {% if amount > 0 %}+${{ amount|floatformat:2 }}{% else %}-{% endif %}
+                <td class="px-4 py-0.5 whitespace-nowrap text-right {% if amount > 0 %}text-emerald-600{% elif amount < 0 %}text-rose-600{% else %}text-slate-500{% endif %}">
+                  {% if amount > 0 %}
+                    +${{ amount|floatformat:2 }}
+                  {% elif amount < 0 %}
+                    -${{ amount|floatformat:2|slice:"1:" }}
+                  {% else %}
+                    $0.00
+                  {% endif %}
                 </td>
                 <td class="px-4 py-0.5 whitespace-nowrap text-right"><button class="text-indigo-600 hover:text-indigo-700">Delete</button></td>
               </tr>
@@ -478,7 +490,7 @@
             {% endfor %}
           {% else %}
             <tr>
-              <td colspan="9" class="px-4 py-6 text-center text-sm text-slate-500">No data available</td>
+              <td colspan="8" class="px-4 py-6 text-center text-sm text-slate-500">No data available</td>
             </tr>
           {% endif %}
         </tbody>

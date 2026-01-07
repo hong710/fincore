@@ -50,10 +50,9 @@ def transaction_table(request):
     selected_payees = [value for value in request.GET.getlist("payee") if value]
     selected_descriptions = [value for value in request.GET.getlist("description") if value]
     selected_kinds = [value for value in request.GET.getlist("kind") if value]
-    spent_min = request.GET.get("spent_min", "").strip()
-    spent_max = request.GET.get("spent_max", "").strip()
-    received_min = request.GET.get("received_min", "").strip()
-    received_max = request.GET.get("received_max", "").strip()
+    amount_type = request.GET.get("amount_type", "all").strip()
+    amount_min = request.GET.get("amount_min", "").strip()
+    amount_max = request.GET.get("amount_max", "").strip()
     sort_field = request.GET.get("sort", "").strip()
     sort_dir = request.GET.get("dir", "asc").strip()
 
@@ -121,23 +120,24 @@ def transaction_table(request):
     if selected_kinds:
         qs = qs.filter(kind__in=selected_kinds)
 
-    spent_min_val = parse_decimal(spent_min)
-    spent_max_val = parse_decimal(spent_max)
-    if spent_min_val is not None or spent_max_val is not None:
-        qs = qs.filter(amount__lt=0)
-        if spent_min_val is not None:
-            qs = qs.filter(amount__lte=-spent_min_val)
-        if spent_max_val is not None:
-            qs = qs.filter(amount__gte=-spent_max_val)
+    amount_min_val = parse_decimal(amount_min)
+    amount_max_val = parse_decimal(amount_max)
+    amount_type = amount_type if amount_type in {"all", "expense", "deposit"} else "all"
 
-    received_min_val = parse_decimal(received_min)
-    received_max_val = parse_decimal(received_max)
-    if received_min_val is not None or received_max_val is not None:
-        qs = qs.filter(amount__gt=0)
-        if received_min_val is not None:
-            qs = qs.filter(amount__gte=received_min_val)
-        if received_max_val is not None:
-            qs = qs.filter(amount__lte=received_max_val)
+    def apply_amount_filters(queryset):
+        if amount_type == "expense":
+            queryset = queryset.filter(amount__lt=0)
+            if amount_min_val is not None:
+                queryset = queryset.filter(amount__lte=-amount_min_val)
+            if amount_max_val is not None:
+                queryset = queryset.filter(amount__gte=-amount_max_val)
+        elif amount_type == "deposit":
+            queryset = queryset.filter(amount__gt=0)
+            if amount_min_val is not None:
+                queryset = queryset.filter(amount__gte=amount_min_val)
+            if amount_max_val is not None:
+                queryset = queryset.filter(amount__lte=amount_max_val)
+        return queryset
 
     if search:
         qs = qs.filter(
@@ -151,8 +151,7 @@ def transaction_table(request):
         "payee": "payee",
         "description": "description",
         "kind": "kind",
-        "spent": "amount",
-        "received": "amount",
+        "amount": "amount",
     }
     if sort_field in sort_map:
         ordering = sort_map[sort_field]
@@ -165,6 +164,7 @@ def transaction_table(request):
         page_size = int(request.GET.get("page_size", 25))
     except (TypeError, ValueError):
         page_size = 25
+    qs = apply_amount_filters(qs)
     paginator = Paginator(qs, page_size)
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
@@ -206,6 +206,7 @@ def transaction_table(request):
             | Q(payee__icontains=search)
             | Q(account__name__icontains=search)
         )
+    options_qs = apply_amount_filters(options_qs)
     
     # Payee options - exclude payee filter to show available payees
     payee_qs = options_qs
@@ -213,19 +214,6 @@ def transaction_table(request):
         payee_qs = payee_qs.filter(description__in=selected_descriptions)
     if selected_kinds:
         payee_qs = payee_qs.filter(kind__in=selected_kinds)
-    if spent_min_val is not None or spent_max_val is not None:
-        payee_qs = payee_qs.filter(amount__lt=0)
-        if spent_min_val is not None:
-            payee_qs = payee_qs.filter(amount__lte=-spent_min_val)
-        if spent_max_val is not None:
-            payee_qs = payee_qs.filter(amount__gte=-spent_max_val)
-    if received_min_val is not None or received_max_val is not None:
-        payee_qs = payee_qs.filter(amount__gt=0)
-        if received_min_val is not None:
-            payee_qs = payee_qs.filter(amount__gte=received_min_val)
-        if received_max_val is not None:
-            payee_qs = payee_qs.filter(amount__lte=received_max_val)
-    
     payee_options = list(
         payee_qs.exclude(payee="").values_list("payee", flat=True).distinct().order_by("payee")
     )
@@ -236,19 +224,6 @@ def transaction_table(request):
         desc_qs = desc_qs.filter(payee__in=selected_payees)
     if selected_kinds:
         desc_qs = desc_qs.filter(kind__in=selected_kinds)
-    if spent_min_val is not None or spent_max_val is not None:
-        desc_qs = desc_qs.filter(amount__lt=0)
-        if spent_min_val is not None:
-            desc_qs = desc_qs.filter(amount__lte=-spent_min_val)
-        if spent_max_val is not None:
-            desc_qs = desc_qs.filter(amount__gte=-spent_max_val)
-    if received_min_val is not None or received_max_val is not None:
-        desc_qs = desc_qs.filter(amount__gt=0)
-        if received_min_val is not None:
-            desc_qs = desc_qs.filter(amount__gte=received_min_val)
-        if received_max_val is not None:
-            desc_qs = desc_qs.filter(amount__lte=received_max_val)
-    
     description_options = list(
         desc_qs.exclude(description="").values_list("description", flat=True).distinct().order_by("description")
     )
@@ -259,19 +234,6 @@ def transaction_table(request):
         kind_qs = kind_qs.filter(payee__in=selected_payees)
     if selected_descriptions:
         kind_qs = kind_qs.filter(description__in=selected_descriptions)
-    if spent_min_val is not None or spent_max_val is not None:
-        kind_qs = kind_qs.filter(amount__lt=0)
-        if spent_min_val is not None:
-            kind_qs = kind_qs.filter(amount__lte=-spent_min_val)
-        if spent_max_val is not None:
-            kind_qs = kind_qs.filter(amount__gte=-spent_max_val)
-    if received_min_val is not None or received_max_val is not None:
-        kind_qs = kind_qs.filter(amount__gt=0)
-        if received_min_val is not None:
-            kind_qs = kind_qs.filter(amount__gte=received_min_val)
-        if received_max_val is not None:
-            kind_qs = kind_qs.filter(amount__lte=received_max_val)
-    
     available_kinds = list(kind_qs.values_list("kind", flat=True).distinct())
     kind_options = [choice[0] for choice in Transaction.KIND_CHOICES if choice[0] in available_kinds]
 
@@ -308,10 +270,16 @@ def transaction_table(request):
         summary_parts.append(f"Desc: {len(selected_descriptions)}")
     if selected_kinds:
         summary_parts.append(f"Kind: {len(selected_kinds)}")
-    if spent_min_val is not None or spent_max_val is not None:
-        summary_parts.append(f"Spent: {spent_min or ''}-{spent_max or ''}")
-    if received_min_val is not None or received_max_val is not None:
-        summary_parts.append(f"Recv: {received_min or ''}-{received_max or ''}")
+    if amount_type != "all" or amount_min_val is not None or amount_max_val is not None:
+        label = "Amount"
+        if amount_type == "expense":
+            label = "Expense"
+        elif amount_type == "deposit":
+            label = "Deposit"
+        if amount_min_val is not None or amount_max_val is not None:
+            summary_parts.append(f"{label}: {amount_min or ''}-{amount_max or ''}")
+        else:
+            summary_parts.append(label)
     filter_summary = ", ".join([part for part in summary_parts if part]) or "No filters"
 
     query_params = request.GET.copy()
@@ -330,10 +298,9 @@ def transaction_table(request):
             "payee": selected_payees,
             "description": selected_descriptions,
             "kind": selected_kinds,
-            "spent_min": spent_min,
-            "spent_max": spent_max,
-            "received_min": received_min,
-            "received_max": received_max,
+            "amount_type": amount_type,
+            "amount_min": amount_min,
+            "amount_max": amount_max,
             "sort": sort_field,
             "dir": sort_dir,
             "page": page_obj.number,

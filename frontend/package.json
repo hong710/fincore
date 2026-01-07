@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --config vite.config.js",
     "build": "vite build --config vite.config.js",
+    "watch": "vite build --watch --config vite.config.js",
     "preview": "vite preview --config vite.config.js",
     "storybook": "storybook dev --config-dir ./storybook",
     "storybook:build": "storybook build --config-dir ./storybook"

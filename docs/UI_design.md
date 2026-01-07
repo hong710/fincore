@@ -26,6 +26,7 @@ This document captures the visual foundations we use across Storybook and Django
 - Vertical section gap: `space-y-4`
 - Table rows: `py-2`
 - Base layout: fixed header, collapsible left sidebar, scrollable main, persistent footer.
+- Modals should open centered on screen (use `items-center` in the overlay wrapper).
 
 ## Storybook References
 - Colors: `frontend/storybook/foundations/colors.html`
