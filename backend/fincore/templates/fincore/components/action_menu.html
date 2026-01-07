@@ -1,0 +1,67 @@
+{% if menu_id %}
+  <div class="relative inline-flex {{ wrapper_class|default:'w-full justify-start' }}" x-data="{}">
+    <button
+      type="button"
+      class="{{ button_class|default:'inline-flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50' }}"
+      @click.stop="openId === '{{ menu_id }}' ? openId = null : openId = '{{ menu_id }}'"
+      aria-haspopup="menu"
+      :aria-expanded="openId === '{{ menu_id }}'"
+    >
+      {{ label|default:"Actions" }}
+      <svg class="h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div
+      x-cloak
+      x-show="openId === '{{ menu_id }}'"
+      x-transition.opacity
+      @click.outside="openId = null"
+      @keydown.escape.window="openId = null"
+      class="{{ menu_class|default:'absolute left-0 top-full z-50 mt-1 w-full space-y-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg' }}"
+    >
+      {% for item in items %}
+        {% if item.type == "divider" %}
+          <div class="h-px bg-slate-200"></div>
+        {% elif item.disabled %}
+          <span class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-400 cursor-not-allowed">{{ item.label }}</span>
+        {% elif item.type == "link" %}
+          <a href="{{ item.href }}" class="{{ item.class }}" {{ item.attrs|safe }}>{{ item.label }}</a>
+        {% else %}
+          <button type="button" class="{{ item.class }}" {{ item.attrs|safe }}>{{ item.label }}</button>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+{% else %}
+  <div class="relative inline-flex {{ wrapper_class|default:'w-full justify-start' }}" x-data="{ open: false }">
+    <button
+      type="button"
+      class="{{ button_class|default:'inline-flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50' }}"
+      @click.stop="open = !open"
+      aria-haspopup="menu"
+      :aria-expanded="open"
+    >
+      {{ label|default:"Actions" }}
+      <svg class="h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div
+      x-cloak
+      x-show="open"
+      x-transition.opacity
+      @click.outside="open = false"
+      @keydown.escape.window="open = false"
+      class="{{ menu_class|default:'absolute left-0 top-full z-50 mt-1 w-full space-y-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg' }}"
+    >
+      {% for item in items %}
+        {% if item.type == "divider" %}
+          <div class="h-px bg-slate-200"></div>
+        {% elif item.disabled %}
+          <span class="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-400 cursor-not-allowed">{{ item.label }}</span>
+        {% elif item.type == "link" %}
+          <a href="{{ item.href }}" class="{{ item.class }}" {{ item.attrs|safe }}>{{ item.label }}</a>
+        {% else %}
+          <button type="button" class="{{ item.class }}" {{ item.attrs|safe }}>{{ item.label }}</button>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}

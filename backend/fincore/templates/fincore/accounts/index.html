@@ -16,7 +16,7 @@
       this.$nextTick(() => { if (this.$refs.editErrors) this.$refs.editErrors.textContent = ''; });
     },
     openDelete(data) {
-      this.deleteTarget = { ...data };
+      this.deleteTarget = { id: data.id, name: data.name };
       this.deleteOpen = true;
       this.$nextTick(() => { if (this.$refs.deleteErrors) this.$refs.deleteErrors.textContent = ''; });
     }
@@ -24,6 +24,7 @@
   @open-edit.window="openEdit($event.detail)"
   @open-delete.window="openDelete($event.detail)"
   @accounts:editClose.window="editOpen = false"
+  @accounts:createClose.window="createOpen = false"
 >
   <div class="flex items-center justify-between">
     <div>
@@ -31,10 +32,6 @@
       <p class="text-sm text-slate-500">Create, edit, and manage where money lives.</p>
     </div>
     <div class="flex items-center gap-2">
-      <button class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-        <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 16.5v-9m0 0L8.25 11.25M12 7.5l3.75 3.75M3.75 19.5h16.5A1.5 1.5 0 0 0 21.75 18V6A1.5 1.5 0 0 0 20.25 4.5H3.75A1.5 1.5 0 0 0 2.25 6v12A1.5 1.5 0 0 0 3.75 19.5Z" /></svg>
-        Import .CSV
-      </button>
       <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="createOpen = true">
         <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         New Account
@@ -48,7 +45,7 @@
   <div
     x-cloak
     x-show="createOpen"
-    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
     role="dialog"
     aria-modal="true"
     @keydown.escape.window="createOpen = false"
@@ -61,7 +58,7 @@
         </button>
       </div>
       <div id="account-form-errors" class="px-4 pt-3 text-sm text-rose-600"></div>
-      <form hx-post="{% url 'fincore:account_create' %}" hx-target="#account-form-errors" hx-swap="innerHTML" hx-on:htmx:afterRequest="if (event.detail.successful) { createOpen = false }">
+      <form hx-post="{% url 'fincore:account_create' %}" hx-target="#account-form-errors" hx-swap="innerHTML" x-on:htmx:afterRequest="if (event.detail.successful) { createOpen = false }">
         <div class="space-y-4 p-4 text-sm text-slate-800">
           <div class="space-y-1">
             <label for="acct-name" class="text-sm font-medium text-slate-700">Account name *</label>
@@ -104,7 +101,7 @@
   <div
     x-cloak
     x-show="editOpen"
-    class="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    class="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
     role="dialog"
     aria-modal="true"
     @click.self="editOpen = false"
@@ -167,7 +164,7 @@
   <div
     x-cloak
     x-show="deleteOpen"
-    class="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+    class="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
     role="dialog"
     aria-modal="true"
     @click.self="deleteOpen = false"
@@ -189,10 +186,7 @@
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
-          x-bind:hx-post="'/accounts/' + deleteTarget.id + '/delete/'"
-          hx-target="#account-delete-errors"
-          hx-swap="innerHTML"
-          hx-on:htmx:afterRequest="if (event.detail.successful) { deleteOpen = false }"
+          @click="fetch('/accounts/' + deleteTarget.id + '/delete/', { method: 'POST', headers: { 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [, ''])[1] } }).then(r => r.text()).then(html => { document.getElementById('account-delete-errors').innerHTML = html; if(html.trim() === '') { deleteOpen = false; document.body.dispatchEvent(new CustomEvent('accounts:refresh')); } })"
         >
           Delete
         </button>

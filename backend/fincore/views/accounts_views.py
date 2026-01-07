@@ -67,7 +67,7 @@ def account_create(request):
     )
     # 204 with HX-Trigger to refresh the table; modal closes via client hook.
     response = HttpResponse(status=204)
-    response["HX-Trigger"] = "accounts:refresh"
+    response["HX-Trigger"] = json.dumps({"accounts:refresh": True, "accounts:createClose": True})
     return response
 
 

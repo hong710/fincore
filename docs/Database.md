@@ -72,6 +72,12 @@ Details:
 1) Staging: create ImportBatch, store ImportRow raw/mapped/errors. Validate amounts, accounts, categories, transfer pairing. No Transaction writes.
 2) Commit: if no errors, open DB tx, insert Transactions with `is_imported=true` and `import_batch_id` set, re-validate transfer groups sum to zero, commit. Any error → rollback; no partial imports.
 
+### Persistence checkpoints (what is stored)
+- Upload request parses the CSV in-memory only; the original file is not saved on disk.
+- Staging writes: `ImportBatch` + `ImportRow` (raw row JSON, mapped fields, and per-row errors).
+- Review UI reads from `ImportRow` and `ImportBatch` only.
+- Commit writes `Transaction` rows in a single atomic transaction; no partial commit allowed.
+
 ### Imported Transactions & Rollback Safety
 - All rows from a CSV import are tagged `is_imported=true` and share the same `import_batch_id`.
 - Rollback happens only at the import_batch level: delete all transactions for that batch in one atomic operation; partial deletion is forbidden (especially for transfers).

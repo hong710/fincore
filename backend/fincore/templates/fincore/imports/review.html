@@ -2,31 +2,45 @@
 {% block title %}Import Review · Fincore{% endblock %}
 
 {% block content %}
-<div class="space-y-4">
-  <div>
-    <h1 class="text-lg font-semibold text-slate-900">Import Review</h1>
-    <p class="text-sm text-slate-500">Review staged CSV data before committing.</p>
+<div class="space-y-4" x-data="{ rollbackOpen: false, rollbackConfirm: '', rollbackChecked: false, deleteOpen: false, deleteConfirm: '', deleteChecked: false }">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <div>
+      <h1 class="text-lg font-semibold text-slate-900">Import Review</h1>
+      <p class="text-sm text-slate-500">Review staged CSV data before committing.</p>
+    </div>
+    {% if batch.account_id %}
+      <a class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50" href="{% url 'fincore:account_imports' batch.account_id %}">
+        ← Back to imports
+      </a>
+    {% endif %}
   </div>
 
-  <div class="rounded-lg border border-slate-200 bg-white p-4">
-    <dl class="grid gap-3 text-sm sm:grid-cols-2">
-      <div>
-        <dt class="text-xs font-semibold text-slate-500">Batch</dt>
-        <dd class="text-slate-900">#{{ batch.id }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-semibold text-slate-500">Filename</dt>
-        <dd class="text-slate-900">{{ batch.filename }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-semibold text-slate-500">Account</dt>
-        <dd class="text-slate-900">{{ batch.account.name }} ({{ batch.account.account_type }})</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-semibold text-slate-500">Status</dt>
-        <dd class="text-slate-900">{{ batch.status }}</dd>
-      </div>
-    </dl>
+  <div class="rounded-lg border border-slate-200 bg-white px-4 py-3">
+    <div class="flex flex-wrap items-center gap-3 text-sm">
+      <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+        Batch
+        <span class="text-slate-900">#{{ batch.id }}</span>
+      </span>
+      {% if batch.account_id %}
+        <a class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200" href="{% url 'fincore:account_imports' batch.account_id %}">
+          Account
+          <span class="text-slate-900">{{ batch.account.name }} ({{ batch.account.account_type }})</span>
+        </a>
+      {% else %}
+        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+          Account
+          <span class="text-slate-900">-</span>
+        </span>
+      {% endif %}
+      <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+        Filename
+        <span class="text-slate-900 truncate max-w-[360px]" title="{{ batch.filename }}">{{ batch.filename }}</span>
+      </span>
+      <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+        Status
+        <span class="text-slate-900 capitalize">{{ batch.status }}</span>
+      </span>
+    </div>
   </div>
 
   {% if batch.status == "validated" %}
@@ -38,17 +52,212 @@
       </form>
     </div>
   {% elif batch.status == "imported" %}
-    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-      This batch has been committed.
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 flex flex-wrap items-center justify-between gap-3">
+      <span>This batch has been committed.</span>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50" @click="rollbackOpen = true">
+          Rollback import
+        </button>
+      </div>
     </div>
   {% elif batch.status == "failed" %}
     <div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
       {{ batch.error_message|default:"Import failed. Check the staged rows for errors." }}
     </div>
-  {% else %}
-    <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-      Review UI goes here. This page will list rows, errors, and allow commit or rollback actions.
+  {% endif %}
+
+  {% if batch.status != "imported" %}
+    <div class="flex items-center justify-end">
+      <button type="button" class="inline-flex items-center gap-2 rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50" @click="deleteOpen = true">
+        Delete batch
+      </button>
     </div>
   {% endif %}
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+      <div class="flex flex-wrap items-center gap-3">
+        <span>{{ paginator.count }} rows staged</span>
+        {% if has_errors %}
+          <span class="text-rose-600">Errors found</span>
+        {% else %}
+          <span class="text-emerald-600">No errors</span>
+        {% endif %}
+        <span>Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ paginator.count }}</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="flex items-center gap-2">
+          <span class="text-slate-500">Rows</span>
+          <select
+            class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+            onchange="window.location.search='?page_size=' + this.value + '{% if filter_query %}&{{ filter_query }}{% endif %}'"
+          >
+            <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+            <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+          </select>
+        </label>
+        <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
+          {% if page_obj.has_previous %}
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.previous_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}">Prev</a>
+          {% else %}
+            <span class="px-2 py-1 opacity-50">Prev</span>
+          {% endif %}
+          <span class="border-l border-r border-slate-200 px-2 py-1">{{ page_obj.number }} / {{ paginator.num_pages }}</span>
+          {% if page_obj.has_next %}
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.next_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}">Next</a>
+          {% else %}
+            <span class="px-2 py-1 opacity-50">Next</span>
+          {% endif %}
+        </div>
+        {% if show_errors %}
+          <a class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50" href="?{% if filter_query %}{{ filter_query }}&{% endif %}errors=0">Show all</a>
+        {% else %}
+          <a class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50" href="?{% if filter_query %}{{ filter_query }}&{% endif %}errors=1">Errors only</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="overflow-auto">
+      <table class="min-w-full text-sm text-slate-800">
+        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+          <tr>
+            <th class="py-2 px-3 text-left">Date</th>
+            <th class="py-2 px-3 text-left">Description</th>
+            <th class="py-2 px-3 text-right">Amount</th>
+            <th class="py-2 px-3 text-left">Errors</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% if page_obj.object_list %}
+            {% for row in page_obj.object_list %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-3 py-2 text-slate-700">{{ row.mapped.date|default:"-" }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.mapped.description|default:"-" }}</td>
+                <td class="px-3 py-2 text-right {{ row.amount_class }}">{{ row.amount_display }}</td>
+                <td class="px-3 py-2 text-xs">
+                  {% if row.errors %}
+                    <div class="inline-flex flex-wrap gap-1">
+                      {% for err in row.errors %}
+                        <span class="rounded-full bg-rose-50 px-2 py-1 text-rose-700">{{ err }}</span>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <span class="text-slate-400">-</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="4" class="px-3 py-6 text-center text-sm text-slate-500">No staged rows found.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% if paginator.num_pages > 1 %}
+      <div class="border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+        <span>Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
+      </div>
+    {% endif %}
+  </div>
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+    x-show="rollbackOpen"
+    x-cloak
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Confirm rollback</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="rollbackOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="space-y-3 p-4 text-sm text-slate-700">
+        <p>This will delete all transactions created by this import batch. This action cannot be undone.</p>
+        <label class="flex items-start gap-2 text-xs text-slate-600">
+          <input type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" x-model="rollbackChecked">
+          <span>I understand this will remove all imported transactions in batch #{{ batch.id }}.</span>
+        </label>
+        <label class="space-y-1 text-xs text-slate-600">
+          <span>Type <span class="font-semibold text-slate-700">ROLLBACK</span> to confirm.</span>
+          <input type="text" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="rollbackConfirm" placeholder="ROLLBACK">
+        </label>
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="rollbackOpen = false">Cancel</button>
+        <form method="post" action="{% url 'fincore:import_rollback' batch.id %}">
+          {% csrf_token %}
+          <button
+            type="submit"
+            class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60"
+            :disabled="!(rollbackChecked && rollbackConfirm === 'ROLLBACK')"
+          >
+            Rollback
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+    x-show="deleteOpen"
+    x-cloak
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Delete batch</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="deleteOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="space-y-3 p-4 text-sm text-slate-700">
+        {% if batch.status == "imported" %}
+          <p>This will delete the batch and all imported transactions. This action cannot be undone.</p>
+          <label class="flex items-start gap-2 text-xs text-slate-600">
+            <input type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" x-model="deleteChecked">
+            <span>I understand this will remove all imported transactions in batch #{{ batch.id }}.</span>
+          </label>
+          <label class="space-y-1 text-xs text-slate-600">
+            <span>Type <span class="font-semibold text-slate-700">DELETE</span> to confirm.</span>
+            <input type="text" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="deleteConfirm" placeholder="DELETE">
+          </label>
+        {% else %}
+          <p>This will delete the batch and all staged rows. This action cannot be undone.</p>
+          <label class="flex items-start gap-2 text-xs text-slate-600">
+            <input type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" x-model="deleteChecked">
+            <span>I understand this will remove staged rows for batch #{{ batch.id }}.</span>
+          </label>
+        {% endif %}
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="deleteOpen = false">Cancel</button>
+        <form method="post" action="{% url 'fincore:import_delete' batch.id %}">
+          {% csrf_token %}
+          {% if batch.status == "imported" %}
+            <input type="hidden" name="confirm_checked" :value="deleteChecked ? 'on' : ''">
+            <input type="hidden" name="confirm_text" :value="deleteConfirm">
+            <button
+              type="submit"
+              class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60"
+              :disabled="!(deleteChecked && deleteConfirm === 'DELETE')"
+            >
+              Delete batch
+            </button>
+          {% else %}
+            <input type="hidden" name="confirm_checked" :value="deleteChecked ? 'on' : ''">
+            <button
+              type="submit"
+              class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60"
+              :disabled="!deleteChecked"
+            >
+              Delete batch
+            </button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

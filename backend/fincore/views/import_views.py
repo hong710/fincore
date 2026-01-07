@@ -1,15 +1,17 @@
+import calendar
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from fincore.models import Account, ImportBatch, ImportRow
+from fincore.models import Account, ImportBatch, ImportRow, Transaction
 
 
 REQUIRED_MAP_KEYS = {"date", "description", "amount"}
@@ -146,16 +148,136 @@ def import_stage(request):
 
 def import_review(request, batch_id):
     batch = get_object_or_404(ImportBatch, pk=batch_id)
-    return render(request, "fincore/imports/review.html", {"batch": batch})
+    rows = list(batch.rows.all())
+    has_errors = any(row.errors for row in rows)
+    show_errors = request.GET.get("errors") in {"1", "true", "yes"}
+
+    if show_errors:
+        rows = [row for row in rows if row.errors]
+
+    try:
+        page_size = int(request.GET.get("page_size", 25))
+    except (TypeError, ValueError):
+        page_size = 25
+
+    paginator = Paginator(rows, page_size)
+    page_number = request.GET.get("page") or 1
+    page_obj = paginator.get_page(page_number)
+
+    for row in page_obj.object_list:
+        raw_amount = str((row.mapped or {}).get("amount", "") or "").strip()
+        amount_display = raw_amount or "-"
+        amount_class = "text-slate-500"
+        if raw_amount:
+            cleaned = raw_amount.replace(",", "").replace("$", "").strip()
+            if cleaned.startswith("(") and cleaned.endswith(")"):
+                cleaned = f"-{cleaned[1:-1]}"
+            try:
+                amount_value = Decimal(cleaned)
+            except (InvalidOperation, ValueError):
+                amount_value = None
+            if amount_value is not None:
+                if amount_value > 0:
+                    amount_display = f"+{amount_value:.2f}"
+                    amount_class = "text-emerald-600"
+                elif amount_value < 0:
+                    amount_display = f"-{abs(amount_value):.2f}"
+                    amount_class = "text-rose-600"
+                else:
+                    amount_display = "0.00"
+        row.amount_display = amount_display
+        row.amount_class = amount_class
+
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+    query_params.pop("page_size", None)
+    return render(
+        request,
+        "fincore/imports/review.html",
+        {
+            "batch": batch,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "page_size": page_size,
+            "has_errors": has_errors,
+            "show_errors": show_errors,
+            "filter_query": query_params.urlencode(),
+        },
+    )
 
 
 def account_imports(request, account_id):
     account = get_object_or_404(Account, pk=account_id)
-    batches = ImportBatch.objects.filter(account=account).order_by("-uploaded_at", "-id")
+    batches = ImportBatch.objects.filter(account=account)
+    date_range = request.GET.get("date_range", "all")
+    date_from = request.GET.get("date_from", "").strip()
+    date_to = request.GET.get("date_to", "").strip()
+    status = request.GET.get("status", "").strip()
+
+    def parse_date(raw_value):
+        raw_value = (raw_value or "").strip()
+        if not raw_value:
+            return None
+        try:
+            return datetime.strptime(raw_value, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    def month_bounds(year_value, month_value):
+        last_day = calendar.monthrange(year_value, month_value)[1]
+        return date(year_value, month_value, 1), date(year_value, month_value, last_day)
+
+    def quarter_bounds(year_value, quarter_key):
+        mapping = {"q1": (1, 3), "q2": (4, 6), "q3": (7, 9), "q4": (10, 12)}
+        start_month, end_month = mapping[quarter_key]
+        _, end_day = calendar.monthrange(year_value, end_month)
+        return date(year_value, start_month, 1), date(year_value, end_month, end_day)
+
+    if date_range and date_range != "all":
+        today = date.today()
+        start_date = None
+        end_date = None
+        if date_range == "this_month":
+            start_date, end_date = month_bounds(today.year, today.month)
+        elif date_range == "last_month":
+            last_month = today.month - 1 or 12
+            year_value = today.year - 1 if today.month == 1 else today.year
+            start_date, end_date = month_bounds(year_value, last_month)
+        elif date_range in {"q1", "q2", "q3", "q4"}:
+            start_date, end_date = quarter_bounds(today.year, date_range)
+        elif date_range == "this_year":
+            start_date = date(today.year, 1, 1)
+            end_date = date(today.year, 12, 31)
+        elif date_range == "last_year":
+            start_date = date(today.year - 1, 1, 1)
+            end_date = date(today.year - 1, 12, 31)
+        elif date_range == "custom":
+            start_date = parse_date(date_from)
+            end_date = parse_date(date_to)
+        if start_date:
+            batches = batches.filter(uploaded_at__date__gte=start_date)
+        if end_date:
+            batches = batches.filter(uploaded_at__date__lte=end_date)
+
+    status_keys = {choice[0] for choice in ImportBatch.STATUS_CHOICES}
+    if status in status_keys:
+        batches = batches.filter(status=status)
+
+    batches = batches.order_by("-uploaded_at", "-id")
     return render(
         request,
         "fincore/imports/account_list.html",
-        {"account": account, "batches": batches},
+        {
+            "account": account,
+            "batches": batches,
+            "status_options": [choice[0] for choice in ImportBatch.STATUS_CHOICES],
+            "filter_payload": {
+                "date_range": date_range or "all",
+                "date_from": date_from,
+                "date_to": date_to,
+                "status": status,
+            },
+        },
     )
 
 
@@ -266,3 +388,53 @@ def import_commit(request, batch_id):
 
     messages.success(request, f"Imported {len(validated)} rows successfully.")
     return redirect(reverse("fincore:import_review", args=[batch.id]))
+
+
+def import_rollback(request, batch_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid method")
+
+    batch = get_object_or_404(ImportBatch, pk=batch_id)
+    if batch.status != "imported":
+        messages.error(request, "Only imported batches can be rolled back.")
+        return redirect(reverse("fincore:import_review", args=[batch.id]))
+
+    account_id = batch.account_id
+    with db_transaction.atomic():
+        Transaction.objects.filter(import_batch=batch).delete()
+        ImportRow.objects.filter(batch=batch).delete()
+        batch.delete()
+
+    messages.success(request, "Import batch rolled back and removed.")
+    if account_id:
+        return redirect(reverse("fincore:account_imports", args=[account_id]))
+    return redirect(reverse("fincore:transaction_list"))
+
+
+def import_delete(request, batch_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid method")
+
+    batch = get_object_or_404(ImportBatch, pk=batch_id)
+    account_id = batch.account_id
+
+    if batch.status == "imported":
+        confirm_text = (request.POST.get("confirm_text") or "").strip().upper()
+        confirm_checked = request.POST.get("confirm_checked") == "on"
+        if confirm_text != "DELETE" or not confirm_checked:
+            messages.error(request, "Confirmation required to delete an imported batch.")
+            return redirect(reverse("fincore:import_review", args=[batch.id]))
+        with db_transaction.atomic():
+            Transaction.objects.filter(import_batch=batch).delete()
+            ImportRow.objects.filter(batch=batch).delete()
+            batch.delete()
+        messages.success(request, "Imported batch deleted with transactions removed.")
+    else:
+        with db_transaction.atomic():
+            ImportRow.objects.filter(batch=batch).delete()
+            batch.delete()
+        messages.success(request, "Import batch deleted.")
+
+    if account_id:
+        return redirect(reverse("fincore:account_imports", args=[account_id]))
+    return redirect(reverse("fincore:transaction_list"))

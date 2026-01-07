@@ -1,8 +1,71 @@
 {% extends "fincore/base.html" %}
+{% load account_tags %}
 {% block title %}{{ account.name }} Imports · Fincore{% endblock %}
 
 {% block content %}
-<div class="space-y-4 flex flex-col h-full">
+{{ filter_payload|json_script:"import-filter-payload" }}
+{{ status_options|json_script:"import-status-options" }}
+<div
+  class="space-y-4 flex flex-col h-full min-h-0"
+  x-data="{
+    payload: JSON.parse(document.getElementById('import-filter-payload').textContent),
+    statusOptions: JSON.parse(document.getElementById('import-status-options').textContent),
+    filters: { date: { range: { type: 'all', key: '', from: '', to: '' } }, status: '' },
+    draft: { dateRange: { type: 'all', key: '', from: '', to: '' }, status: '' },
+    init() {
+      const range = this.payload.date_range || 'all';
+      if (range === 'custom') {
+        this.filters.date.range = { type: 'custom', key: '', from: this.payload.date_from || '', to: this.payload.date_to || '' };
+      } else if (range !== 'all') {
+        this.filters.date.range = { type: 'quick', key: range, from: '', to: '' };
+      }
+      this.filters.status = this.payload.status || '';
+      this.resetDraftAll();
+    },
+    resetDraftAll() {
+      this.draft.dateRange = { ...this.filters.date.range };
+      this.draft.status = this.filters.status;
+    },
+    selectQuickRange(key) {
+      this.draft.dateRange = { type: 'quick', key, from: '', to: '' };
+    },
+    applyDraft(type) {
+      if (type === 'date') this.filters.date.range = { ...this.draft.dateRange };
+      if (type === 'status') this.filters.status = this.draft.status;
+      this.submitFilters();
+    },
+    resetDraft(type) {
+      if (type === 'date') this.draft.dateRange = { ...this.filters.date.range };
+      if (type === 'status') this.draft.status = this.filters.status;
+    },
+    clearFilter(type) {
+      if (type === 'date') this.filters.date.range = { type: 'all', key: '', from: '', to: '' };
+      if (type === 'status') this.filters.status = '';
+      this.resetDraft(type);
+      this.submitFilters();
+    },
+    filterActive(type) {
+      if (type === 'date') return this.filters.date.range.type !== 'all';
+      if (type === 'status') return this.filters.status !== '';
+      return false;
+    },
+    dateRangeValue() {
+      return this.filters.date.range.type === 'all' ? 'all' : (this.filters.date.range.type === 'custom' ? 'custom' : this.filters.date.range.key);
+    },
+    submitFilters() {
+      const form = this.$refs.filterForm;
+      if (!form) return;
+      form.querySelectorAll('input[type=hidden]').forEach((input) => {
+        const name = input.name;
+        if (name === 'date_range') input.value = this.dateRangeValue();
+        else if (name === 'date_from') input.value = this.filters.date.range.from;
+        else if (name === 'date_to') input.value = this.filters.date.range.to;
+        else if (name === 'status') input.value = this.filters.status;
+      });
+      this.$nextTick(() => form.requestSubmit());
+    }
+  }"
+>
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-lg font-semibold text-slate-900">Imports for {{ account.name }}</h1>
@@ -10,39 +73,147 @@
     </div>
   </div>
 
-  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-    <table class="min-w-full text-sm text-slate-800">
-      <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
-        <tr>
-          <th class="py-2 px-3 text-left">Batch</th>
-          <th class="py-2 px-3 text-left">Filename</th>
-          <th class="py-2 px-3 text-left">Status</th>
-          <th class="py-2 px-3 text-left">Created</th>
-          <th class="py-2 px-3 text-right">Action</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-slate-200">
-        {% if batches %}
-          {% for batch in batches %}
-            <tr class="hover:bg-slate-50">
-              <td class="px-3 py-2">#{{ batch.id }}</td>
-              <td class="px-3 py-2 text-slate-600">{{ batch.filename }}</td>
-              <td class="px-3 py-2">
-                <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{{ batch.status }}</span>
-              </td>
-              <td class="px-3 py-2 text-slate-600">{{ batch.uploaded_at|date:"m/d/Y" }}</td>
-              <td class="px-3 py-2 text-right">
-                <a class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50" href="{% url 'fincore:import_review' batch.id %}">Review</a>
-              </td>
-            </tr>
-          {% endfor %}
-        {% else %}
+  <div class="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+    <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">Pending</span>
+    <span class="text-slate-500">uploaded, not validated</span>
+    <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700">Validated</span>
+    <span class="text-slate-500">ready to commit</span>
+    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">Imported</span>
+    <span class="text-slate-500">committed to transactions</span>
+    <span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 font-semibold text-rose-700">Failed</span>
+    <span class="text-slate-500">blocked by errors</span>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-240px)]" x-data="{ openId: null }">
+    <form
+      x-ref="filterForm"
+      class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
+      method="get"
+    >
+      <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+          <span class="text-slate-500">Filters</span>
+        </div>
+        <div class="relative inline-flex z-20" x-data="{ open: false }">
+          <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('date') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
+            <span>Date</span>
+            <svg class="ml-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('date') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
+              <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
+            </svg>
+          </button>
+          <div x-cloak x-show="open" @click.outside="open=false" class="absolute left-0 z-50 mt-2 w-60 space-y-3 rounded-md border border-slate-200 bg-white p-3 shadow-md">
+            <div class="grid grid-cols-2 gap-2 text-xs font-medium text-slate-700">
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='this_month' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('this_month')">This month</button>
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='last_month' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('last_month')">Last month</button>
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q1' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q1')">1st quarter</button>
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q2' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q2')">2nd quarter</button>
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q3' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q3')">3rd quarter</button>
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='q4' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('q4')">4th quarter</button>
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='this_year' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('this_year')">This year</button>
+              <button type="button" class="rounded-md border px-2 py-1 transition hover:bg-slate-50" :class="draft.dateRange.type==='quick' && draft.dateRange.key==='last_year' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="selectQuickRange('last_year')">Last year</button>
+            </div>
+            <div class="space-y-2 text-xs text-slate-700">
+              <p class="font-medium">Custom range</p>
+              <div class="space-y-2">
+                <label class="relative block w-full">
+                  <span class="absolute left-3 top-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">From</span>
+                  <input type="date" class="w-full rounded-md border border-slate-200 px-3 pt-6 pb-2 text-xs font-semibold text-slate-800 placeholder:font-semibold placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.dateRange.from" @input="draft.dateRange.type='custom'">
+                </label>
+                <label class="relative block w-full">
+                  <span class="absolute left-3 top-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">To</span>
+                  <input type="date" class="w-full rounded-md border border-slate-200 px-3 pt-6 pb-2 text-xs font-semibold text-slate-800 placeholder:font-semibold placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="draft.dateRange.to" @input="draft.dateRange.type='custom'">
+                </label>
+              </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-1">
+              <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('date'); open=false">Cancel</button>
+              <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="clearFilter('date'); open=false">Clear</button>
+              <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('date'); open=false">Apply</button>
+            </div>
+          </div>
+        </div>
+        <div class="relative inline-flex z-20" x-data="{ open: false }">
+          <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('status') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
+            <span>Status</span>
+            <svg class="ml-1 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('status') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
+              <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
+            </svg>
+          </button>
+          <div x-cloak x-show="open" @click.outside="open=false" class="absolute left-0 z-50 mt-2 w-48 space-y-2 rounded-md border border-slate-200 bg-white p-3 shadow-md">
+            <div class="space-y-1 text-xs text-slate-700">
+              <label class="flex items-center gap-2">
+                <input type="radio" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500" value="" x-model="draft.status">
+                <span>All</span>
+              </label>
+              <template x-for="opt in statusOptions" :key="opt">
+                <label class="flex items-center gap-2 capitalize">
+                  <input type="radio" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.status">
+                  <span x-text="opt"></span>
+                </label>
+              </template>
+            </div>
+            <div class="flex justify-end gap-2 pt-1">
+              <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('status'); open=false">Cancel</button>
+              <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="clearFilter('status'); open=false">Clear</button>
+              <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('status'); open=false">Apply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <input type="hidden" name="date_range" :value="dateRangeValue()">
+      <input type="hidden" name="date_from" x-model="filters.date.range.from">
+      <input type="hidden" name="date_to" x-model="filters.date.range.to">
+      <input type="hidden" name="status" x-model="filters.status">
+    </form>
+    <div class="overflow-auto relative flex-none h-[calc(25*2rem+2.5rem)]">
+      <table class="min-w-full text-sm text-slate-800">
+        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
           <tr>
-            <td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">No import batches for this account.</td>
+            <th class="py-2 px-3 text-left">Batch</th>
+            <th class="py-2 px-3 text-left">Filename</th>
+            <th class="py-2 px-3 text-left">Status</th>
+            <th class="py-2 px-3 text-left">Created</th>
+            <th class="py-2 px-3 text-right">Action</th>
           </tr>
-        {% endif %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% if batches %}
+            {% for batch in batches %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-3 py-2">
+                  <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">#{{ batch.id }}</span>
+                </td>
+                <td class="px-3 py-2">
+                  <a class="text-slate-700 hover:text-indigo-700" href="{% url 'fincore:import_review' batch.id %}">
+                    {{ batch.filename }}
+                  </a>
+                </td>
+                <td class="px-3 py-2">
+                  {% if batch.status == "pending" %}
+                    <span class="inline-flex rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Pending</span>
+                  {% elif batch.status == "validated" %}
+                    <span class="inline-flex rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">Validated</span>
+                  {% elif batch.status == "imported" %}
+                    <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Imported</span>
+                  {% else %}
+                    <span class="inline-flex rounded-full bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">Failed</span>
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2 text-slate-600">{{ batch.uploaded_at|date:"m/d/Y" }}</td>
+                <td class="px-3 py-2 text-right">
+                  {% import_batch_actions batch %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">No import batches for this account.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 {% endblock %}
