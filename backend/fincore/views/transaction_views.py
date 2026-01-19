@@ -23,12 +23,18 @@ def transaction_list(request):
         prefill_account_id = int(request.GET.get("import_account") or 0)
     except (TypeError, ValueError):
         prefill_account_id = 0
-    if not any(acct["id"] == prefill_account_id for acct in accounts):
+    account_ids = {acct["id"] for acct in accounts}
+    if prefill_account_id not in account_ids:
         prefill_account_id = 0
+    default_account_id = prefill_account_id or (accounts[0]["id"] if accounts else None)
     return render(
         request,
         "fincore/transactions/index.html",
-        {"accounts": accounts, "prefill_account_id": prefill_account_id or None},
+        {
+            "accounts": accounts,
+            "prefill_account_id": prefill_account_id or None,
+            "default_account_id": default_account_id,
+        },
     )
 
 
@@ -40,6 +46,19 @@ def transaction_table(request):
         if query:
             target = f"{target}?{query}"
         return redirect(target)
+
+    accounts = list(
+        Account.objects.filter(is_active=True)
+        .order_by("name")
+        .values("id", "name", "account_type")
+    )
+    account_ids = {acct["id"] for acct in accounts}
+    try:
+        selected_account_id = int(request.GET.get("account_id") or 0)
+    except (TypeError, ValueError):
+        selected_account_id = 0
+    if selected_account_id not in account_ids:
+        selected_account_id = accounts[0]["id"] if accounts else None
 
     qs = Transaction.objects.select_related("account", "category", "transfer_group")
     base_qs = Transaction.objects.all()
@@ -83,6 +102,11 @@ def transaction_table(request):
         start_month, end_month = mapping[quarter_key]
         _, end_day = calendar.monthrange(year_value, end_month)
         return date(year_value, start_month, 1), date(year_value, end_month, end_day)
+
+    if selected_account_id:
+        qs = qs.filter(account_id=selected_account_id)
+    else:
+        qs = qs.none()
 
     if date_range and date_range != "all":
         today = date.today()
@@ -140,11 +164,14 @@ def transaction_table(request):
         return queryset
 
     if search:
-        qs = qs.filter(
-            Q(description__icontains=search)
-            | Q(payee__icontains=search)
-            | Q(account__name__icontains=search)
-        )
+        search_terms = [term for term in search.split() if term]
+        if search_terms:
+            for term in search_terms:
+                qs = qs.filter(
+                    Q(description__icontains=term)
+                    | Q(payee__icontains=term)
+                    | Q(account__name__icontains=term)
+                )
 
     sort_map = {
         "date": "date",
@@ -172,6 +199,10 @@ def transaction_table(request):
     # Calculate available options from filtered queryset (qs), not all transactions
     # Exclude currently applied filters from the options to show what's available
     options_qs = Transaction.objects.all()
+    if selected_account_id:
+        options_qs = options_qs.filter(account_id=selected_account_id)
+    else:
+        options_qs = options_qs.none()
     
     # Apply all filters EXCEPT the one we're calculating options for
     if date_range and date_range != "all":
@@ -201,11 +232,14 @@ def transaction_table(request):
             options_qs = options_qs.filter(date__lte=end_date)
     
     if search:
-        options_qs = options_qs.filter(
-            Q(description__icontains=search)
-            | Q(payee__icontains=search)
-            | Q(account__name__icontains=search)
-        )
+        search_terms = [term for term in search.split() if term]
+        if search_terms:
+            for term in search_terms:
+                options_qs = options_qs.filter(
+                    Q(description__icontains=term)
+                    | Q(payee__icontains=term)
+                    | Q(account__name__icontains=term)
+                )
     options_qs = apply_amount_filters(options_qs)
     
     # Payee options - exclude payee filter to show available payees
@@ -291,7 +325,10 @@ def transaction_table(request):
         "page_size": page_size,
         "search": search,
         "page_sizes": [25, 50, 100],
+        "accounts": accounts,
+        "selected_account_id": selected_account_id,
         "filter_payload": {
+            "account_id": selected_account_id,
             "date_range": date_range or "all",
             "date_from": date_from,
             "date_to": date_to,
