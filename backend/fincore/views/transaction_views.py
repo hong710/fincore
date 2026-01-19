@@ -4,9 +4,10 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.shortcuts import redirect, render
+from django.http import HttpResponse, HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from fincore.models import Account, Transaction
+from fincore.models import Account, Category, Transaction
 
 
 def transaction_list(request):
@@ -18,6 +19,11 @@ def transaction_list(request):
         Account.objects.filter(is_active=True)
         .order_by("name")
         .values("id", "name", "account_type")
+    )
+    categories = list(
+        Category.objects.filter(is_active=True)
+        .order_by("kind", "name")
+        .values("id", "name", "kind")
     )
     try:
         prefill_account_id = int(request.GET.get("import_account") or 0)
@@ -32,6 +38,7 @@ def transaction_list(request):
         "fincore/transactions/index.html",
         {
             "accounts": accounts,
+            "categories": categories,
             "prefill_account_id": prefill_account_id or None,
             "default_account_id": default_account_id,
         },
@@ -69,6 +76,12 @@ def transaction_table(request):
     selected_payees = [value for value in request.GET.getlist("payee") if value]
     selected_descriptions = [value for value in request.GET.getlist("description") if value]
     selected_kinds = [value for value in request.GET.getlist("kind") if value]
+    selected_category_ids = []
+    for value in request.GET.getlist("category"):
+        try:
+            selected_category_ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
     amount_type = request.GET.get("amount_type", "all").strip()
     amount_min = request.GET.get("amount_min", "").strip()
     amount_max = request.GET.get("amount_max", "").strip()
@@ -143,6 +156,9 @@ def transaction_table(request):
 
     if selected_kinds:
         qs = qs.filter(kind__in=selected_kinds)
+
+    if selected_category_ids:
+        qs = qs.filter(category_id__in=selected_category_ids)
 
     amount_min_val = parse_decimal(amount_min)
     amount_max_val = parse_decimal(amount_max)
@@ -248,6 +264,8 @@ def transaction_table(request):
         payee_qs = payee_qs.filter(description__in=selected_descriptions)
     if selected_kinds:
         payee_qs = payee_qs.filter(kind__in=selected_kinds)
+    if selected_category_ids:
+        payee_qs = payee_qs.filter(category_id__in=selected_category_ids)
     payee_options = list(
         payee_qs.exclude(payee="").values_list("payee", flat=True).distinct().order_by("payee")
     )
@@ -258,6 +276,8 @@ def transaction_table(request):
         desc_qs = desc_qs.filter(payee__in=selected_payees)
     if selected_kinds:
         desc_qs = desc_qs.filter(kind__in=selected_kinds)
+    if selected_category_ids:
+        desc_qs = desc_qs.filter(category_id__in=selected_category_ids)
     description_options = list(
         desc_qs.exclude(description="").values_list("description", flat=True).distinct().order_by("description")
     )
@@ -268,8 +288,23 @@ def transaction_table(request):
         kind_qs = kind_qs.filter(payee__in=selected_payees)
     if selected_descriptions:
         kind_qs = kind_qs.filter(description__in=selected_descriptions)
+    if selected_category_ids:
+        kind_qs = kind_qs.filter(category_id__in=selected_category_ids)
     available_kinds = list(kind_qs.values_list("kind", flat=True).distinct())
     kind_options = [choice[0] for choice in Transaction.KIND_CHOICES if choice[0] in available_kinds]
+
+    category_qs = options_qs.exclude(category_id__isnull=True)
+    if selected_payees:
+        category_qs = category_qs.filter(payee__in=selected_payees)
+    if selected_descriptions:
+        category_qs = category_qs.filter(description__in=selected_descriptions)
+    if selected_kinds:
+        category_qs = category_qs.filter(kind__in=selected_kinds)
+    category_options = list(
+        category_qs.values("category_id", "category__name")
+        .distinct()
+        .order_by("category__name")
+    )
 
     for value in selected_payees:
         if value not in payee_options:
@@ -280,6 +315,16 @@ def transaction_table(request):
     for value in selected_kinds:
         if value not in kind_options:
             kind_options.append(value)
+    if selected_category_ids:
+        selected_categories = list(
+            Category.objects.filter(id__in=selected_category_ids).values("id", "name")
+        )
+        existing_ids = {item["category_id"] for item in category_options}
+        for category in selected_categories:
+            if category["id"] not in existing_ids:
+                category_options.append(
+                    {"category_id": category["id"], "category__name": category["name"]}
+                )
 
     date_labels = {
         "this_month": "This month",
@@ -304,6 +349,8 @@ def transaction_table(request):
         summary_parts.append(f"Desc: {len(selected_descriptions)}")
     if selected_kinds:
         summary_parts.append(f"Kind: {len(selected_kinds)}")
+    if selected_category_ids:
+        summary_parts.append(f"Category: {len(selected_category_ids)}")
     if amount_type != "all" or amount_min_val is not None or amount_max_val is not None:
         label = "Amount"
         if amount_type == "expense":
@@ -335,6 +382,7 @@ def transaction_table(request):
             "payee": selected_payees,
             "description": selected_descriptions,
             "kind": selected_kinds,
+            "category": selected_category_ids,
             "amount_type": amount_type,
             "amount_min": amount_min,
             "amount_max": amount_max,
@@ -347,7 +395,155 @@ def transaction_table(request):
         "payee_options": payee_options,
         "description_options": description_options,
         "kind_options": kind_options,
+        "category_options": category_options,
         "filter_summary": filter_summary,
         "filter_query": query_params.urlencode(),
     }
     return render(request, "fincore/transactions/table_partial.html", context)
+
+
+def transaction_bulk_action(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid method")
+
+    action = (request.POST.get("action") or "").strip()
+    raw_ids = (request.POST.get("transaction_ids") or "").strip()
+    if not raw_ids:
+        return render(
+            request,
+            "fincore/accounts/form_errors.html",
+            {"form_errors": ["Select at least one transaction."]},
+            status=200,
+        )
+    try:
+        transaction_ids = [int(val) for val in raw_ids.split(",") if val.strip()]
+    except ValueError:
+        return HttpResponseBadRequest("Invalid transaction selection")
+
+    if action != "category":
+        return render(
+            request,
+            "fincore/accounts/form_errors.html",
+            {"form_errors": ["Only category updates are supported right now."]},
+            status=200,
+        )
+
+    try:
+        category_id = int(request.POST.get("category_id") or 0)
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("Invalid category")
+
+    category = Category.objects.filter(is_active=True, pk=category_id).first()
+    if not category:
+        return render(
+            request,
+            "fincore/accounts/form_errors.html",
+            {"form_errors": ["Select a valid active category."]},
+            status=200,
+        )
+
+    Transaction.objects.filter(id__in=transaction_ids).update(
+        category=category, kind=category.kind
+    )
+
+    resp = HttpResponse(status=204)
+    resp["HX-Trigger"] = '{"transactions:refresh": true, "transactions:bulkClose": true}'
+    return resp
+
+
+def transaction_delete(request, pk):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid method")
+
+    txn = get_object_or_404(Transaction, pk=pk)
+    errors = []
+    if txn.is_imported:
+        errors.append("Imported transactions cannot be deleted.")
+    if txn.kind == "transfer":
+        errors.append("Transfers must be deleted as a pair.")
+    if errors:
+        return render(
+            request,
+            "fincore/accounts/form_errors.html",
+            {"form_errors": errors},
+            status=200,
+        )
+
+    txn.delete()
+    resp = HttpResponse(status=204)
+    resp["HX-Trigger"] = '{"transactions:editClose": true}'
+    return resp
+
+
+def transaction_update(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid method")
+
+    try:
+        txn_id = int(request.POST.get("transaction_id") or 0)
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("Invalid transaction")
+
+    txn = get_object_or_404(Transaction, pk=txn_id)
+
+    payee = (request.POST.get("payee") or "").strip()
+    category_id = request.POST.get("category_id") or None
+    category = None
+    if category_id:
+        try:
+            category = Category.objects.get(pk=int(category_id))
+        except (Category.DoesNotExist, ValueError, TypeError):
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Invalid category selected."]},
+                status=200,
+            )
+
+    if txn.is_imported:
+        txn.payee = payee
+        txn.category = category
+        txn.kind = category.kind if category else txn.kind
+        txn.save()
+    else:
+        raw_date = request.POST.get("date")
+        raw_amount = request.POST.get("amount")
+        description = (request.POST.get("description") or "").strip()
+
+        if not raw_date:
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Date is required."]},
+                status=200,
+            )
+        try:
+            parsed_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+        except ValueError:
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Invalid date."]},
+                status=200,
+            )
+        try:
+            amount = Decimal(str(raw_amount))
+        except (InvalidOperation, ValueError, TypeError):
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Invalid amount."]},
+                status=200,
+            )
+
+        txn.date = parsed_date
+        txn.amount = amount
+        txn.description = description
+        txn.payee = payee
+        txn.category = category
+        txn.kind = category.kind if category else txn.kind
+        txn.save()
+
+    resp = HttpResponse(status=204)
+    resp["HX-Trigger"] = '{"transactions:refresh": true, "transactions:editClose": true}'
+    return resp

@@ -56,6 +56,9 @@ def category_table(request):
         return redirect(target)
 
     search = request.GET.get("q", "").strip()
+    selected_kinds = [value for value in request.GET.getlist("kind") if value]
+    selected_active = [value for value in request.GET.getlist("active") if value]
+    active_scope = request.GET.get("active_scope", "active").strip()
     try:
         page_size = int(request.GET.get("page_size", 25))
     except (TypeError, ValueError):
@@ -64,7 +67,47 @@ def category_table(request):
     qs = Category.objects.annotate(transaction_count=Count("transactions"))
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+    if selected_kinds:
+        qs = qs.filter(kind__in=selected_kinds)
+    if selected_active:
+        active_map = {"active": True, "inactive": False}
+        active_values = [active_map[val] for val in selected_active if val in active_map]
+        if active_values:
+            qs = qs.filter(is_active__in=active_values)
+    elif active_scope == "active":
+        qs = qs.filter(is_active=True)
     qs = qs.order_by("kind", "name")
+
+    options_base = Category.objects.all()
+    if search:
+        options_base = options_base.filter(Q(name__icontains=search) | Q(description__icontains=search))
+
+    kind_options_qs = options_base
+    if selected_active:
+        active_map = {"active": True, "inactive": False}
+        active_values = [active_map[val] for val in selected_active if val in active_map]
+        if active_values:
+            kind_options_qs = kind_options_qs.filter(is_active__in=active_values)
+    elif active_scope == "active":
+        kind_options_qs = kind_options_qs.filter(is_active=True)
+    available_kinds = list(kind_options_qs.values_list("kind", flat=True).distinct())
+    kind_options = [choice[0] for choice in Category.KIND_CHOICES if choice[0] in available_kinds]
+    for value in selected_kinds:
+        if value not in kind_options:
+            kind_options.append(value)
+
+    active_options_qs = options_base
+    if selected_kinds:
+        active_options_qs = active_options_qs.filter(kind__in=selected_kinds)
+    available_active = list(active_options_qs.values_list("is_active", flat=True).distinct())
+    active_options = []
+    if True in available_active:
+        active_options.append("active")
+    if False in available_active:
+        active_options.append("inactive")
+    for value in selected_active:
+        if value not in active_options:
+            active_options.append(value)
 
     paginator = Paginator(qs, page_size)
     page_number = request.GET.get("page") or 1
@@ -76,6 +119,17 @@ def category_table(request):
         "page_size": page_size,
         "page_sizes": [25, 50, 100],
         "search": search,
+        "filter_payload": {
+            "kind": selected_kinds,
+            "active": selected_active,
+            "active_scope": active_scope,
+            "page": page_obj.number,
+            "page_size": page_size,
+            "search": search,
+        },
+        "kind_options": kind_options,
+        "active_options": active_options,
+        "inactive_count": Category.objects.filter(is_active=False).count(),
     }
     return render(request, "fincore/categories/table_partial.html", context)
 

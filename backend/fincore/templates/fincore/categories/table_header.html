@@ -4,7 +4,7 @@
   hx-target="#categories-table"
   hx-push-url="true"
   hx-trigger="submit"
-  x-data="{ search: '{{ search|escapejs }}' }"
+  x-ref="filterForm"
 >
   <div class="flex items-center gap-3 flex-wrap">
     <label class="flex items-center gap-2 text-slate-500">
@@ -19,14 +19,26 @@
         {% endfor %}
       </select>
     </label>
+    <label class="flex items-center gap-2 text-slate-500">
+      <span>Status</span>
+      <select
+        class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        :value="activeScope"
+        @change="applyActiveScope($event.target.value)"
+      >
+        <option value="active">Active</option>
+        <option value="all">All</option>
+      </select>
+    </label>
+    <span class="text-slate-400 text-xs">Inactive ({{ inactive_count }})</span>
     <div class="relative">
-      <input id="category-search" name="q" type="text" class="rounded-md border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56" placeholder="Search categories" x-model="search" @keydown.enter.prevent="$el.form.requestSubmit()">
+      <input id="category-search" name="q" type="text" class="rounded-md border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56" placeholder="Search categories" x-model="search" @keydown.enter.prevent="submitFilters()">
       <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 5.25 5.25a7.5 7.5 0 0 0 11.4 11.4Z"/></svg>
       <button
         type="button"
         class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
         x-show="search"
-        @click="search=''; $el.form.requestSubmit()"
+        @click="search=''; submitFilters()"
         aria-label="Clear search"
       >
         <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -39,7 +51,7 @@
     <button
       type="button"
       class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-      @click="search=''; $el.form.requestSubmit()"
+      @click="search=''; submitFilters()"
     >
       Reset filters
     </button>
@@ -50,4 +62,14 @@
       <button type="submit" class="px-2 py-1 hover:bg-slate-50 {% if not page_obj.has_next %}opacity-50 cursor-not-allowed{% endif %}" {% if page_obj.has_next %}name="page" value="{{ page_obj.next_page_number }}"{% else %}disabled{% endif %}>Next</button>
     </div>
   </div>
+
+  <input type="hidden" name="page" x-model.number="page">
+  <input type="hidden" name="active_scope" x-model="activeScope">
+
+  <template x-for="val in kindSelected" :key="`kind-${val}`">
+    <input type="hidden" name="kind" :value="val">
+  </template>
+  <template x-for="val in activeSelected" :key="`active-${val}`">
+    <input type="hidden" name="active" :value="val">
+  </template>
 </form>

@@ -1,5 +1,11 @@
 from django.urls import path
-from .views.transaction_views import transaction_list, transaction_table
+from .views.transaction_views import (
+    transaction_list,
+    transaction_table,
+    transaction_bulk_action,
+    transaction_delete,
+    transaction_update,
+)
 from .views.category_views import (
     category_list,
     category_table,
@@ -29,6 +35,9 @@ app_name = "fincore"
 urlpatterns = [
     path("transactions/", transaction_list, name="transaction_list"),
     path("transactions/table/", transaction_table, name="transaction_table"),
+    path("transactions/bulk-action/", transaction_bulk_action, name="transaction_bulk_action"),
+    path("transactions/<int:pk>/delete/", transaction_delete, name="transaction_delete"),
+    path("transactions/update/", transaction_update, name="transaction_update"),
     path("categories/", category_list, name="category_list"),
     path("categories/table/", category_table, name="category_table"),
     path("categories/create/", category_create, name="category_create"),

@@ -2,7 +2,40 @@
 {% block title %}Transactions · Fincore{% endblock %}
 
 {% block content %}
-<div class="space-y-4 flex flex-col h-full" x-data="{ uploadOpen: false }" @open-import.window="uploadOpen = true">
+<div
+  class="space-y-4 flex flex-col h-full"
+  x-data="{
+    uploadOpen: false,
+    editOpen: false,
+    confirmOpen: false,
+    editForm: { id: null, date: '', payee: '', description: '', category_id: '', kind: '', amount: '', is_imported: false },
+    openEdit(data) {
+      this.editForm = { ...data };
+      this.editOpen = true;
+      this.confirmOpen = false;
+      this.$nextTick(() => { if (this.$refs.editErrors) this.$refs.editErrors.textContent = ''; });
+    },
+    refreshTransactions() {
+      document.body.dispatchEvent(new CustomEvent('transactions:refresh'));
+    },
+    confirmDelete() {
+      const url = '{% url 'fincore:transaction_delete' 0 %}'.replace('/0/', `/${this.editForm.id}/`);
+      fetch(url, { method: 'POST', headers: { 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [, ''])[1] } })
+        .then(r => r.text())
+        .then(html => {
+          if (this.$refs.editErrors) this.$refs.editErrors.innerHTML = html;
+          if (html.trim() === '') {
+            this.confirmOpen = false;
+            this.editOpen = false;
+            this.refreshTransactions();
+          }
+        });
+    }
+  }"
+  @open-import.window="uploadOpen = true"
+  @transaction-edit.window="openEdit($event.detail)"
+  @transactions:editClose.window="editOpen = false"
+>
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-lg font-semibold text-slate-900">Transactions</h1>
@@ -18,6 +51,103 @@
   </div>
 
   <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="transactions-table" hx-get="{% url 'fincore:transaction_table' %}" hx-trigger="load"></div>
+
+  <!-- Edit transaction modal -->
+  <div
+    x-cloak
+    x-show="editOpen"
+    class="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="editOpen = false"
+    @keydown.escape.window="editOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Edit Transaction</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="editOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div x-ref="editErrors" id="transaction-edit-errors" class="px-4 pt-3 text-sm text-rose-600"></div>
+    <form
+      class="space-y-4 p-4"
+      hx-post="{% url 'fincore:transaction_update' %}"
+      hx-target="#transaction-edit-errors"
+      hx-swap="innerHTML"
+      @htmx:after-request.camel="if ($event.detail.xhr.status === 204) { editOpen = false; refreshTransactions(); }"
+    >
+      <input type="hidden" name="transaction_id" x-model="editForm.id">
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="space-y-1 text-xs font-medium text-slate-600">
+          <span>Date</span>
+          <input type="date" name="date" x-model="editForm.date" :disabled="editForm.is_imported" :class="editForm.is_imported ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        </label>
+          <label class="space-y-1 text-xs font-medium text-slate-600">
+            <span>Kind</span>
+          <input type="text" x-model="editForm.kind" disabled class="w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700">
+          </label>
+        <label class="space-y-1 text-xs font-medium text-slate-600">
+          <span>Category</span>
+          <select name="category_id" x-model="editForm.category_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+            <option value="">Select category</option>
+            {% for category in categories %}
+              <option value="{{ category.id }}">{{ category.name }} ({{ category.kind }})</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="space-y-1 text-xs font-medium text-slate-600">
+          <span>Amount</span>
+          <input type="number" name="amount" step="0.01" x-model="editForm.amount" :disabled="editForm.is_imported" :class="editForm.is_imported ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        </label>
+      </div>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Payee</span>
+        <input type="text" name="payee" x-model="editForm.payee" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional">
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Description</span>
+        <textarea rows="3" name="description" x-model="editForm.description" :disabled="editForm.is_imported" :class="editForm.is_imported ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional"></textarea>
+      </label>
+        <div class="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="editForm.is_imported"
+            @click="confirmOpen = true"
+          >
+            Delete
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="editOpen = false">Cancel</button>
+            <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div
+    x-cloak
+    x-show="confirmOpen"
+    class="fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="confirmOpen = false"
+    @keydown.escape.window="confirmOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Confirm Delete</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="confirmOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="p-4 text-sm text-slate-700">
+        This will permanently delete the transaction. Continue?
+      </div>
+      <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="confirmOpen = false">Cancel</button>
+        <button type="button" class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700" @click="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="new-transaction-modal" class="hs-overlay hidden fixed inset-0 z-50 overflow-y-auto" tabindex="-1">
@@ -82,20 +212,40 @@
         <h2 class="text-sm font-medium text-slate-700">Bulk Action</h2>
         <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" data-hs-overlay="#bulk-action-modal" aria-label="Close">✕</button>
       </div>
-      <form class="space-y-4 p-4">
+      <form
+        class="space-y-4 p-4"
+        hx-post="{% url 'fincore:transaction_bulk_action' %}"
+        hx-target="#bulk-action-errors"
+        hx-swap="innerHTML"
+        @htmx:after-request.camel="if ($event.detail.xhr.status === 204) { if (window.HSOverlay) window.HSOverlay.close('#bulk-action-modal'); }"
+        x-data="{ action: '' }"
+      >
+        <div id="bulk-action-errors" class="text-sm text-rose-600"></div>
         <label class="space-y-1 text-xs font-medium text-slate-600">
           <span>Action</span>
-          <select class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <select name="action" x-model="action" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+            <option value="">Select action</option>
             <option value="payee">Payee</option>
             <option value="category">Category</option>
             <option value="delete">Delete</option>
           </select>
         </label>
-        <p class="text-xs text-slate-500">Delete is allowed only for manually created transactions.</p>
+        <label class="space-y-1 text-xs font-medium text-slate-600" x-show="action === 'category'">
+          <span>Category</span>
+          <select name="category_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+            <option value="">Select category</option>
+            {% for category in categories %}
+              <option value="{{ category.id }}">{{ category.name }} ({{ category.kind }})</option>
+            {% endfor %}
+          </select>
+          <a href="{% url 'fincore:category_list' %}" class="text-xs text-indigo-600 hover:text-indigo-700">Manage categories</a>
+        </label>
+        <p class="text-xs text-slate-500" x-show="action === 'delete'">Delete is allowed only for manually created transactions.</p>
         <div class="flex items-center justify-end gap-2">
           <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" data-hs-overlay="#bulk-action-modal">Cancel</button>
-          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white opacity-60" disabled>Apply</button>
+          <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Apply</button>
         </div>
+        <input type="hidden" name="transaction_ids" id="bulk-action-ids">
       </form>
     </div>
   </div>

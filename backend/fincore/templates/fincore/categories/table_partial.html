@@ -1,3 +1,97 @@
-<div class="flex h-full flex-col space-y-4" x-data>
+{{ filter_payload|json_script:"category-filter-payload" }}
+{{ kind_options|json_script:"category-kind-options" }}
+{{ active_options|json_script:"category-active-options" }}
+
+<div
+  class="flex h-full flex-col space-y-4"
+  x-data="{
+    payload: JSON.parse(document.getElementById('category-filter-payload').textContent),
+    kindOptions: [],
+    activeOptions: [],
+    kindSearch: '',
+    activeScope: 'all',
+    page: 1,
+    pageSize: 25,
+    search: '',
+    kindSelected: [],
+    activeSelected: [],
+    draft: {
+      kindSelected: [],
+      activeSelected: []
+    },
+    init() {
+      this.kindOptions = JSON.parse(document.getElementById('category-kind-options').textContent);
+      this.activeOptions = JSON.parse(document.getElementById('category-active-options').textContent);
+      const ensureArray = (value) => Array.isArray(value) ? value : [];
+      this.page = this.payload.page || 1;
+      this.pageSize = this.payload.page_size || 25;
+      this.search = this.payload.search || '';
+      this.kindSelected = ensureArray(this.payload.kind);
+      this.activeSelected = ensureArray(this.payload.active);
+      this.activeScope = this.payload.active_scope || 'all';
+      this.resetDraftAll();
+    },
+    resetDraftAll() {
+      this.draft.kindSelected = [...this.kindSelected];
+      this.draft.activeSelected = [...this.activeSelected];
+    },
+    filterActive(type) {
+      if (type === 'kind') return this.kindSelected.length > 0;
+      if (type === 'active') return this.activeSelected.length > 0;
+      return false;
+    },
+    applyDraft(type) {
+      if (type === 'kind') this.kindSelected = [...this.draft.kindSelected];
+      if (type === 'active') this.activeSelected = [...this.draft.activeSelected];
+      this.submitFilters();
+    },
+    resetDraft(type) {
+      if (type === 'kind') this.draft.kindSelected = [...this.kindSelected];
+      if (type === 'active') this.draft.activeSelected = [...this.activeSelected];
+    },
+    clearFilter(type) {
+      if (type === 'kind') this.kindSelected = [];
+      if (type === 'active') this.activeSelected = [];
+      this.resetDraft(type);
+      this.submitFilters();
+    },
+    selectAllKinds() {
+      this.draft.kindSelected = [...this.kindOptions];
+    },
+    unselectAllKinds() {
+      this.draft.kindSelected = [];
+    },
+    filteredKindOptions() {
+      const search = this.kindSearch.toLowerCase();
+      return this.kindOptions.filter((opt) => String(opt).toLowerCase().includes(search));
+    },
+    applyActiveScope(value) {
+      this.activeScope = value;
+      if (value === 'all') this.activeSelected = [];
+      if (value === 'active') this.activeSelected = [];
+      this.resetDraft('active');
+      this.submitFilters();
+    },
+    submitFilters() {
+      this.page = 1;
+      this.$nextTick(() => {
+        const form = this.$refs.filterForm;
+        if (!form) return;
+        form.querySelectorAll('input[type=hidden]').forEach(input => {
+          const name = input.name;
+          if (name === 'page') input.value = this.page;
+          else if (name === 'active_scope') input.value = this.activeScope;
+        });
+        if (window.htmx) {
+          window.htmx.trigger(form, 'submit');
+        } else if (form.requestSubmit) {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        }
+      });
+    }
+  }"
+>
   {% include "fincore/components/filter_table_shell.html" with header_template="fincore/categories/table_header.html" table_template="fincore/categories/table_table.html" %}
 </div>

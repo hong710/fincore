@@ -2,17 +2,26 @@
 {{ payee_options|json_script:"txn-payee-options" }}
 {{ description_options|json_script:"txn-description-options" }}
 {{ kind_options|json_script:"txn-kind-options" }}
+{{ category_options|json_script:"txn-category-options" }}
 
 <div
   class="flex h-full flex-col space-y-4"
-  @htmx:before-request.window="rememberSearchFocus()"
-  @htmx:after-swap.window="loadOptions(); selectedIds = []; restoreSearchFocus()"
   x-data="{
-    payload: JSON.parse(document.getElementById('txn-filter-payload').textContent),
+    payload: (() => {
+      const el = document.getElementById('txn-filter-payload');
+      if (!el) return {};
+      try {
+        return JSON.parse(el.textContent);
+      } catch (err) {
+        return {};
+      }
+    })(),
     payeeOptions: [],
     descriptionOptions: [],
     kindOptions: [],
+    categoryOptions: [],
     selectedIds: [],
+    accountId: null,
     page: 1,
     pageSize: 25,
     search: '',
@@ -21,12 +30,14 @@
     payeeSearch: '',
     descriptionSearch: '',
     kindSearch: '',
+    categorySearch: '',
     searchHadFocus: false,
     filters: {
       date: { range: { type: 'all', key: '', from: '', to: '' } },
       payee: { selected: [] },
       description: { selected: [] },
       kind: { selected: [] },
+      category: { selected: [] },
       amount: { type: 'all', min: '', max: '' }
     },
     draft: {
@@ -34,12 +45,14 @@
       payee: [],
       description: [],
       kind: [],
+      category: [],
       amount: { type: 'all', min: '', max: '' }
     },
     init() {
       this.loadOptions();
       this.page = this.payload.page || 1;
       this.pageSize = this.payload.page_size || 25;
+      this.accountId = this.payload.account_id || null;
       this.search = this.payload.search || '';
       this.sortField = this.payload.sort || '';
       this.sortDir = this.payload.dir || 'asc';
@@ -55,6 +68,7 @@
       this.filters.payee.selected = ensureArray(this.payload.payee);
       this.filters.description.selected = ensureArray(this.payload.description);
       this.filters.kind.selected = ensureArray(this.payload.kind);
+      this.filters.category.selected = ensureArray(this.payload.category);
       this.filters.amount = {
         type: this.payload.amount_type || 'all',
         min: this.payload.amount_min || '',
@@ -63,12 +77,23 @@
       this.resetDraftAll();
     },
     loadOptions() {
-      this.payeeOptions = JSON.parse(document.getElementById('txn-payee-options').textContent);
-      this.descriptionOptions = JSON.parse(document.getElementById('txn-description-options').textContent);
-      this.kindOptions = JSON.parse(document.getElementById('txn-kind-options').textContent);
+      const readJson = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return [];
+        try {
+          return JSON.parse(el.textContent);
+        } catch (err) {
+          return [];
+        }
+      };
+      this.payeeOptions = readJson('txn-payee-options');
+      this.descriptionOptions = readJson('txn-description-options');
+      this.kindOptions = readJson('txn-kind-options');
+      this.categoryOptions = readJson('txn-category-options');
     },
     rememberSearchFocus() {
-      this.searchHadFocus = document.activeElement?.id === 'txn-search';
+      const active = document.activeElement;
+      this.searchHadFocus = !!active && active.id === 'txn-search';
     },
     restoreSearchFocus() {
       if (!this.searchHadFocus) return;
@@ -83,6 +108,7 @@
       this.draft.payee = [...this.filters.payee.selected];
       this.draft.description = [...this.filters.description.selected];
       this.draft.kind = [...this.filters.kind.selected];
+      this.draft.category = [...this.filters.category.selected];
       this.draft.amount = { ...this.filters.amount };
     },
     selectQuickRange(key) {
@@ -93,6 +119,7 @@
       if (type === 'payee') this.filters.payee.selected = [...this.draft.payee];
       if (type === 'description') this.filters.description.selected = [...this.draft.description];
       if (type === 'kind') this.filters.kind.selected = [...this.draft.kind];
+      if (type === 'category') this.filters.category.selected = [...this.draft.category];
       if (type === 'amount') this.filters.amount = { ...this.draft.amount };
       this.submitFilters();
     },
@@ -101,6 +128,7 @@
       if (type === 'payee') this.draft.payee = [...this.filters.payee.selected];
       if (type === 'description') this.draft.description = [...this.filters.description.selected];
       if (type === 'kind') this.draft.kind = [...this.filters.kind.selected];
+      if (type === 'category') this.draft.category = [...this.filters.category.selected];
       if (type === 'amount') this.draft.amount = { ...this.filters.amount };
     },
     clearFilter(type) {
@@ -108,6 +136,7 @@
       if (type === 'payee') this.filters.payee.selected = [];
       if (type === 'description') this.filters.description.selected = [];
       if (type === 'kind') this.filters.kind.selected = [];
+      if (type === 'category') this.filters.category.selected = [];
       if (type === 'amount') this.filters.amount = { type: 'all', min: '', max: '' };
       this.resetDraft(type);
       this.submitFilters();
@@ -117,6 +146,7 @@
       if (type === 'payee') return this.filters.payee.selected.length > 0;
       if (type === 'description') return this.filters.description.selected.length > 0;
       if (type === 'kind') return this.filters.kind.selected.length > 0;
+      if (type === 'category') return this.filters.category.selected.length > 0;
       if (type === 'amount') return this.filters.amount.type !== 'all' || this.filters.amount.min !== '' || this.filters.amount.max !== '';
       return false;
     },
@@ -124,11 +154,17 @@
       if (type === 'payee') this.draft.payee = [...this.payeeOptions];
       if (type === 'description') this.draft.description = [...this.descriptionOptions];
       if (type === 'kind') this.draft.kind = [...this.kindOptions];
+      if (type === 'category') this.draft.category = this.categoryOptions.map((opt) => String(opt.category_id));
     },
     unselectAll(type) {
       if (type === 'payee') this.draft.payee = [];
       if (type === 'description') this.draft.description = [];
       if (type === 'kind') this.draft.kind = [];
+      if (type === 'category') this.draft.category = [];
+    },
+    filteredCategoryOptions() {
+      const search = this.categorySearch.toLowerCase();
+      return this.categoryOptions.filter((opt) => String(opt.category__name).toLowerCase().includes(search));
     },
     filteredOptions(type) {
       const search = (type === 'payee' ? this.payeeSearch : type === 'description' ? this.descriptionSearch : this.kindSearch).toLowerCase();
@@ -148,7 +184,6 @@
       this.$nextTick(() => {
         const form = this.$refs.filterForm;
         if (!form) return;
-        // Sync all form field values before submit
         form.querySelectorAll('input[type=hidden]').forEach(input => {
           const name = input.name;
           if (name === 'page') input.value = this.page;
@@ -161,15 +196,44 @@
           else if (name === 'sort') input.value = this.sortField;
           else if (name === 'dir') input.value = this.sortDir;
         });
-        // Use HTMX API to trigger the request
-        if (window.htmx) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else if (window.htmx) {
           window.htmx.trigger(form, 'submit');
         } else {
           form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         }
       });
-    }
-    ,
+    },
+    refreshCurrent() {
+      this.$nextTick(() => {
+        const form = this.$refs.filterForm;
+        if (!form) return;
+        const accountSelect = form.querySelector('select[name=account_id]');
+        if (accountSelect && this.accountId !== null) {
+          accountSelect.value = String(this.accountId);
+        }
+        form.querySelectorAll('input[type=hidden]').forEach(input => {
+          const name = input.name;
+          if (name === 'page') input.value = this.page;
+          else if (name === 'date_range') input.value = this.dateRangeValue();
+          else if (name === 'date_from') input.value = this.filters.date.range.from;
+          else if (name === 'date_to') input.value = this.filters.date.range.to;
+          else if (name === 'amount_type') input.value = this.filters.amount.type;
+          else if (name === 'amount_min') input.value = this.filters.amount.min;
+          else if (name === 'amount_max') input.value = this.filters.amount.max;
+          else if (name === 'sort') input.value = this.sortField;
+          else if (name === 'dir') input.value = this.sortDir;
+        });
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else if (window.htmx) {
+          window.htmx.trigger(form, 'submit');
+        } else {
+          form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        }
+      });
+    },
     resetAllFilters() {
       this.search = '';
       this.sortField = '';
@@ -179,12 +243,25 @@
         payee: { selected: [] },
         description: { selected: [] },
         kind: { selected: [] },
+        category: { selected: [] },
         amount: { type: 'all', min: '', max: '' }
       };
       this.resetDraftAll();
       this.submitFilters();
+    },
+    openBulkAction() {
+      const input = document.getElementById('bulk-action-ids');
+      if (input) {
+        input.value = this.selectedIds.join(',');
+      }
+      if (window.HSOverlay) {
+        window.HSOverlay.open('#bulk-action-modal');
+      }
     }
   }"
+  @htmx:before-request.window="rememberSearchFocus()"
+  @htmx:after-swap.window="loadOptions(); selectedIds = []; restoreSearchFocus()"
+  @transactions:refresh.window="refreshCurrent()"
 >
   {% include "fincore/components/filter_table_shell.html" with header_template="fincore/transactions/table_header.html" table_template="fincore/transactions/table_table.html" %}
 </div>
