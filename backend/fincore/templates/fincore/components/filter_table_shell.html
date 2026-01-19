@@ -1,0 +1,6 @@
+<div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[70vh]">
+  {% include header_template %}
+  <div class="overflow-auto relative flex-none {% if table_height_class %}{{ table_height_class }}{% else %}h-[calc(25*2rem+2.5rem)]{% endif %}">
+    {% include table_template %}
+  </div>
+</div>

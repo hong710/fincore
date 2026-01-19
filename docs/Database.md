@@ -3,14 +3,15 @@
 ## Entities
 - **Account**: Where money lives. Balance is always derived.
   - has `is_active` (boolean). Inactive accounts are archived, never deleted once transactions exist.
-- **Category**: For income/expense only. Has `kind` (`income` | `expense`). Transfers never use categories.
+- **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `transfer` | `opening`) and `is_active`. Imported transactions may remain uncategorized until reviewed.
 - **Transaction**: Core single-entry record (date, account, amount, kind, payee?, category?, transfer_group?, import_batch?, is_imported, description, source, created_at).
   - income  → amount > 0, category required
   - expense → amount < 0, category required
-  - transfer → category NULL, transfer_group required
-  - opening → system initialization; excluded from P&L; payee optional
+  - transfer → category required, transfer_group required
+  - opening → category required; excluded from P&L; payee optional
   - payee is free text (other party); direction is determined by kind/amount, not payee
   - is_imported true only for CSV-created rows; every imported row links to an import_batch
+  - kind is derived from category when category is present; imported rows may be uncategorized until user assigns a category
 - **TransferGroup**: Pairs transfer transactions; sum per group must be zero.
 - **ImportBatch**: One CSV upload; status `pending|validated|imported|failed`.
 - **ImportRow**: Staged CSV rows with mapped fields + validation errors; never touch Transaction until batch commits.
@@ -28,7 +29,7 @@ ImportBatch (1) ──< ImportRow
 ```
 Details:
 - Transaction.account → Account (FK, PROTECT)
-- Transaction.category → Category (FK, PROTECT, nullable; only for income/expense)
+- Transaction.category → Category (FK, PROTECT, nullable for imports only)
 - Transaction.transfer_group → TransferGroup (FK, PROTECT, nullable; required for transfers)
 - ImportRow.batch → ImportBatch (FK, CASCADE)
 
@@ -36,7 +37,7 @@ Details:
 - **account**
   - id PK, name (unique), description?, is_active (bool, default true), created_at
 - **category**
-  - id PK, name, kind (`income|expense`), description?, created_at
+  - id PK, name, kind (`income|expense|transfer|opening`), description?, is_active (bool, default true), created_at
   - unique_together: (name, kind)
 - **transfer_group**
   - id PK, reference (unique), created_at
@@ -48,8 +49,9 @@ Details:
   - business rules (enforced in validation/service layer):
     - income: amount > 0 AND category_id NOT NULL
     - expense: amount < 0 AND category_id NOT NULL
-    - transfer: category_id NULL AND transfer_group_id NOT NULL
-    - opening: initialization; excluded from P&L; payee optional
+    - transfer: category_id NOT NULL AND transfer_group_id NOT NULL
+    - opening: category_id NOT NULL; excluded from P&L; payee optional
+    - imported rows may keep category_id NULL until reviewed
     - each transfer_group sums to zero (paired +/–)
     - imported rows: if is_imported=true then import_batch_id is required and matches batch that created them; all rows in a batch share the same import_batch_id; imported transfers keep both sides in the same batch
 
@@ -90,7 +92,7 @@ Details:
 - Import logic:
   - Amount < 0 ⇒ kind = expense
   - Amount > 0 ⇒ kind = income
-  - category = NULL; payee = NULL
+  - category = NULL (uncategorized until user review); payee = NULL
   - No transfers auto-created; ignore any balance columns.
 - Safety:
   - Every imported row sets `is_imported=true` and shares the same `import_batch_id`.

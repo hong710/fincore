@@ -1,0 +1,163 @@
+{% extends "fincore/base.html" %}
+{% block title %}Chart of Accounts · Fincore{% endblock %}
+
+{% block content %}
+<div
+  class="space-y-4 flex flex-col h-full"
+  x-data="{
+    createOpen: false,
+    editOpen: false,
+    editForm: { id: null, name: '', kind: 'expense', description: '', is_active: true },
+    openEdit(data) {
+      this.editForm = { ...data };
+      this.editOpen = true;
+      this.$nextTick(() => { if (this.$refs.editErrors) this.$refs.editErrors.textContent = ''; });
+    }
+  }"
+  @category-edit.window="openEdit($event.detail)"
+  @categories:editClose.window="editOpen = false"
+  @categories:createClose.window="createOpen = false"
+>
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-lg font-semibold text-slate-900">Chart of Accounts</h1>
+      <p class="text-sm text-slate-500">Manage categories that define transaction kinds.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="createOpen = true">
+        <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+        New Category
+      </button>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="categories-table" hx-get="{% url 'fincore:category_table' %}" hx-trigger="load,categories:refresh from:body"></div>
+
+  <!-- Create category modal -->
+  <div
+    x-cloak
+    x-show="createOpen"
+    class="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="createOpen = false"
+    @keydown.escape.window="createOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">New Category</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="createOpen = false" aria-label="Close">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6m0 12L6 6" /></svg>
+        </button>
+      </div>
+      <div x-ref="createErrors" id="category-create-errors" class="px-4 pt-3 text-sm text-rose-600"></div>
+      <form
+        hx-post="{% url 'fincore:category_create' %}"
+        hx-target="#category-create-errors"
+        hx-swap="innerHTML"
+        @htmx:after-request.camel="if ($event.detail.xhr.status === 204) createOpen = false"
+      >
+        <div class="space-y-4 p-4 text-sm text-slate-800">
+          <div class="space-y-1">
+            <label for="cat-new-name" class="text-sm font-medium text-slate-700">Category name *</label>
+            <input name="name" id="cat-new-name" type="text" required class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g., Office Supplies">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <label for="cat-new-kind" class="text-sm font-medium text-slate-700">Kind</label>
+              <select name="kind" id="cat-new-kind" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="income">Income</option>
+                <option value="expense" selected>Expense</option>
+                <option value="transfer">Transfer</option>
+                <option value="opening">Opening</option>
+              </select>
+            </div>
+            <div class="mt-6 flex h-10 items-center">
+              <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input name="is_active" id="cat-new-active" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked>
+                <span>Active</span>
+              </label>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <label for="cat-new-desc" class="text-sm font-medium text-slate-700">Description (optional)</label>
+            <textarea name="description" id="cat-new-desc" rows="3" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Internal notes"></textarea>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-slate-200 p-4">
+          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="createOpen = false">Cancel</button>
+          <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Create Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit category modal -->
+  <div
+    x-cloak
+    x-show="editOpen"
+    class="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="editOpen = false"
+    @keydown.escape.window="editOpen = false"
+  >
+  <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+    <div class="flex items-center justify-between border-b border-slate-200 p-4">
+      <h2 class="text-sm font-medium text-slate-700">Edit Category</h2>
+      <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="editOpen = false" aria-label="Close">
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6m0 12L6 6" /></svg>
+      </button>
+    </div>
+    <div x-ref="editErrors" id="category-edit-errors" class="px-4 pt-3 text-sm text-rose-600"></div>
+    <form
+      hx-post="{% url 'fincore:category_update' %}"
+      hx-target="#category-edit-errors"
+      hx-swap="innerHTML"
+      @htmx:after-request.camel="if ($event.detail.xhr.status === 204) editOpen = false"
+    >
+      <div class="space-y-4 p-4 text-sm text-slate-800">
+        <input type="hidden" name="category_id" x-model="editForm.id">
+        <div class="space-y-1">
+          <label for="cat-edit-name" class="text-sm font-medium text-slate-700">Category name *</label>
+          <input name="name" id="cat-edit-name" type="text" required x-model="editForm.name" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g., Office Supplies">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label for="cat-edit-kind" class="text-sm font-medium text-slate-700">Kind</label>
+            <select name="kind" id="cat-edit-kind" x-model="editForm.kind" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+              <option value="transfer">Transfer</option>
+              <option value="opening">Opening</option>
+            </select>
+          </div>
+          <div class="mt-6 flex h-10 items-center">
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input name="is_active" id="cat-edit-active" type="checkbox" x-model="editForm.is_active" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+              <span>Active</span>
+            </label>
+          </div>
+        </div>
+        <div class="space-y-1">
+          <label for="cat-edit-desc" class="text-sm font-medium text-slate-700">Description (optional)</label>
+          <textarea name="description" id="cat-edit-desc" rows="3" x-model="editForm.description" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Internal notes"></textarea>
+        </div>
+      </div>
+      <div class="flex items-center justify-between border-t border-slate-200 p-4">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+          @click="fetch('{% url 'fincore:category_delete' 0 %}'.replace('/0/', `/${editForm.id}/`), { method: 'POST', headers: { 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [, ''])[1] } }).then((response) => { const action = response.headers.get('X-Category-Action'); if ($refs.editErrors) { $refs.editErrors.textContent = action === 'deactivated' ? 'Category is in use; marked inactive instead.' : 'Category deleted.'; } if (action === 'deleted') { editOpen = false; } if (action === 'deactivated') { editForm.is_active = false; } document.body.dispatchEvent(new CustomEvent('categories:refresh')); })"
+        >
+          Delete
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="editOpen = false">Cancel</button>
+          <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Save Changes</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

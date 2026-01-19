@@ -11,8 +11,8 @@ class Transaction(models.Model):
     Kind rules:
     - income: amount > 0, category required
     - expense: amount < 0, category required
-    - transfer: category null, transfer_group required, paired to sum zero
-    - opening: system initialization; not real income/expense; excluded from P&L
+    - transfer: category required, transfer_group required, paired to sum zero
+    - opening: category required; not real income/expense; excluded from P&L
     """
 
     KIND_CHOICES = [
@@ -49,6 +49,13 @@ class Transaction(models.Model):
 
     class Meta:
         ordering = ["-date", "-id"]
+
+    def save(self, *args, **kwargs):
+        if not self.is_imported and not self.category_id:
+            raise ValueError("Category is required for non-imported transactions.")
+        if self.category_id:
+            self.kind = self.category.kind
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.date} {self.kind} {self.amount} {self.account}"

@@ -1,0 +1,43 @@
+<table class="min-w-full table-auto text-sm text-slate-800">
+  <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+    <tr class="sticky top-0 bg-slate-50">
+      <th class="py-1.5 px-3 text-left align-top">Category</th>
+      <th class="py-1.5 px-3 text-left align-top">Kind</th>
+      <th class="py-1.5 px-3 text-left align-top">Description</th>
+      <th class="py-1.5 px-3 text-left align-top">Used</th>
+      <th class="py-1.5 px-3 text-left align-top">Active</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-slate-200">
+    {% if page_obj.object_list %}
+      {% for category in page_obj.object_list %}
+        <tr
+          class="h-8 hover:bg-slate-50 transition-colors"
+          @dblclick="$dispatch('category-edit', {
+            id: {{ category.id }},
+            name: '{{ category.name|escapejs }}',
+            kind: '{{ category.kind }}',
+            description: '{{ category.description|default:''|escapejs }}',
+            is_active: {{ category.is_active|yesno:'true,false' }}
+          })"
+        >
+          <td class="px-4 py-0.5 whitespace-nowrap">{{ category.name }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap capitalize">{{ category.kind }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap" title="{{ category.description|default:"" }}">{{ category.description|default:"-"|truncatewords:15 }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap text-slate-600">{{ category.transaction_count }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap">
+            {% if category.is_active %}
+              <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+            {% else %}
+              <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Inactive</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">No categories available</td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>

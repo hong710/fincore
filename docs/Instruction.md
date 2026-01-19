@@ -87,7 +87,9 @@ TRANSACTION KINDS
 
 RULES:
 - income/expense REQUIRE category
-- transfer/opening FORBID category
+- transfer/opening REQUIRE category
+- kind is derived from category when category is present
+- imported transactions may be uncategorized until user review
 - opening amounts MUST be positive only
 - transfers are excluded from P&L
 - opening is excluded from P&L
@@ -119,6 +121,7 @@ IMPORTED TRANSACTIONS:
 - is_imported = true
 - amount and description are READ-ONLY
 - category and tags are editable
+- category may be empty until user assigns it
 - individual delete is FORBIDDEN
 - rollback allowed ONLY by full import batch
 - rollback FORBIDDEN after reconciliation

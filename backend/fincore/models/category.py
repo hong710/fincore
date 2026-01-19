@@ -3,17 +3,20 @@ from django.db import models
 
 class Category(models.Model):
     """
-    Categories apply only to income/expense. Transfers never reference categories.
+    Categories define transaction kind, including transfer/opening.
     """
 
     KIND_CHOICES = [
         ("income", "Income"),
         ("expense", "Expense"),
+        ("transfer", "Transfer"),
+        ("opening", "Opening"),
     ]
 
     name = models.CharField(max_length=100)
-    kind = models.CharField(max_length=7, choices=KIND_CHOICES)
+    kind = models.CharField(max_length=8, choices=KIND_CHOICES)
     description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

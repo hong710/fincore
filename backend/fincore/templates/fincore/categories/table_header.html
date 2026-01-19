@@ -1,0 +1,53 @@
+<form
+  class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
+  hx-get="{% url 'fincore:category_table' %}"
+  hx-target="#categories-table"
+  hx-push-url="true"
+  hx-trigger="submit"
+  x-data="{ search: '{{ search|escapejs }}' }"
+>
+  <div class="flex items-center gap-3 flex-wrap">
+    <label class="flex items-center gap-2 text-slate-500">
+      <span>Rows per page</span>
+      <select
+        name="page_size"
+        class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        @change="$el.form.requestSubmit()"
+      >
+        {% for size in page_sizes %}
+          <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="relative">
+      <input id="category-search" name="q" type="text" class="rounded-md border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 w-56" placeholder="Search categories" x-model="search" @keydown.enter.prevent="$el.form.requestSubmit()">
+      <svg class="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 5.25 5.25a7.5 7.5 0 0 0 11.4 11.4Z"/></svg>
+      <button
+        type="button"
+        class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
+        x-show="search"
+        @click="search=''; $el.form.requestSubmit()"
+        aria-label="Clear search"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="flex items-center gap-3">
+    <button
+      type="button"
+      class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+      @click="search=''; $el.form.requestSubmit()"
+    >
+      Reset filters
+    </button>
+    <span>Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ paginator.count }} records</span>
+    <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
+      <button type="submit" class="px-2 py-1 hover:bg-slate-50 {% if not page_obj.has_previous %}opacity-50 cursor-not-allowed{% endif %}" {% if page_obj.has_previous %}name="page" value="{{ page_obj.previous_page_number }}"{% else %}disabled{% endif %}>Prev</button>
+      <span class="border-l border-r border-slate-200 px-2 py-1">{{ page_obj.number }} / {{ paginator.num_pages }}</span>
+      <button type="submit" class="px-2 py-1 hover:bg-slate-50 {% if not page_obj.has_next %}opacity-50 cursor-not-allowed{% endif %}" {% if page_obj.has_next %}name="page" value="{{ page_obj.next_page_number }}"{% else %}disabled{% endif %}>Next</button>
+    </div>
+  </div>
+</form>
