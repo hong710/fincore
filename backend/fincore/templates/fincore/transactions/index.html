@@ -8,12 +8,37 @@
     uploadOpen: false,
     editOpen: false,
     confirmOpen: false,
-    editForm: { id: null, date: '', vendor_id: '', description: '', category_id: '', kind: '', amount: '', is_imported: false },
+    transferMatchOpen: false,
+    editForm: { id: null, date: '', vendor_id: '', description: '', category_id: '', kind: '', amount: '', is_imported: false, account_id: null, transfer_group_id: '', is_locked: false },
     openEdit(data) {
       this.editForm = { ...data };
       this.editOpen = true;
       this.confirmOpen = false;
       this.$nextTick(() => { if (this.$refs.editErrors) this.$refs.editErrors.textContent = ''; });
+    },
+    applyNewTransactionAccount(id) {
+      const modalSelect = document.getElementById('new-transaction-account');
+      if (modalSelect) modalSelect.value = id ? String(id) : '';
+    },
+    syncNewTransactionAccount() {
+      const accountSelect = document.querySelector('#transactions-table select[name=account_id]');
+      if (accountSelect) this.applyNewTransactionAccount(accountSelect.value);
+    },
+    openTransferMatch() {
+      if (!this.editForm.id) return;
+      this.transferMatchOpen = true;
+      this.$nextTick(() => {
+        const target = this.$refs.transferMatchList;
+        if (!target) return;
+        target.innerHTML = '';
+        const loading = document.createElement('p');
+        loading.className = 'text-xs text-slate-500';
+        loading.textContent = 'Loading matches...';
+        target.appendChild(loading);
+        if (!window.htmx) return;
+        const url = `{% url 'fincore:transaction_transfer_matches' %}?transaction_id=${this.editForm.id}`;
+        window.htmx.ajax('GET', url, { target });
+      });
     },
     refreshTransactions() {
       document.body.dispatchEvent(new CustomEvent('transactions:refresh'));
@@ -35,6 +60,8 @@
   @open-import.window="uploadOpen = true"
   @transaction-edit.window="openEdit($event.detail)"
   @transactions:editClose.window="editOpen = false"
+  @transactions:account-selected.window="applyNewTransactionAccount($event.detail && $event.detail.id)"
+  @transactions:transferClose.window="transferMatchOpen = false"
 >
   <div class="flex items-center justify-between">
     <div>
@@ -46,11 +73,11 @@
         <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5 21 6m0 0-4.5-4.5M21 6h-6a2.25 2.25 0 0 0-2.25 2.25V21M8.25 9.75H6.75A2.25 2.25 0 0 0 4.5 12v6a2.25 2.25 0 0 0 2.25 2.25h6a2.25 2.25 0 0 0 2.25-2.25v-1.5" /></svg>
         Upload .CSV
       </button>
-      <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" data-hs-overlay="#new-transaction-modal">+ New Transaction</button>
+      <button class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" data-hs-overlay="#new-transaction-modal" @click="syncNewTransactionAccount()">+ New Transaction</button>
     </div>
   </div>
 
-  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="transactions-table" hx-get="{% url 'fincore:transaction_table' %}" hx-trigger="load"></div>
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="transactions-table" hx-get="{% url 'fincore:transaction_table' %}{% if table_query %}?{{ table_query }}{% endif %}" hx-trigger="load"></div>
 
   <!-- Edit transaction modal -->
   <div
@@ -79,7 +106,7 @@
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="space-y-1 text-xs font-medium text-slate-600">
           <span>Date</span>
-          <input type="date" name="date" x-model="editForm.date" :disabled="editForm.is_imported" :class="editForm.is_imported ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <input type="date" name="date" x-model="editForm.date" :disabled="editForm.is_imported || editForm.transfer_group_id || editForm.is_locked" :class="editForm.is_imported || editForm.transfer_group_id || editForm.is_locked ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
         </label>
           <label class="space-y-1 text-xs font-medium text-slate-600">
             <span>Kind</span>
@@ -87,7 +114,7 @@
           </label>
         <label class="space-y-1 text-xs font-medium text-slate-600">
           <span>Category</span>
-          <select name="category_id" x-model="editForm.category_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <select name="category_id" x-model="editForm.category_id" :disabled="editForm.transfer_group_id || editForm.is_locked" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
             <option value="">Select category</option>
             {% for category in categories %}
               <option value="{{ category.id }}">{{ category.name }} ({{ category.kind }})</option>
@@ -96,12 +123,12 @@
         </label>
         <label class="space-y-1 text-xs font-medium text-slate-600">
           <span>Amount</span>
-          <input type="number" name="amount" step="0.01" x-model="editForm.amount" :disabled="editForm.is_imported" :class="editForm.is_imported ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <input type="number" name="amount" step="0.01" x-model="editForm.amount" :disabled="editForm.is_imported || editForm.transfer_group_id || editForm.is_locked" :class="editForm.is_imported || editForm.transfer_group_id || editForm.is_locked ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
         </label>
       </div>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Vendor</span>
-        <select name="vendor_id" x-model="editForm.vendor_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        <select name="vendor_id" x-model="editForm.vendor_id" :disabled="editForm.transfer_group_id || editForm.is_locked" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
           <option value="">Select vendor</option>
           {% for vendor in vendors %}
             <option value="{{ vendor.id }}">{{ vendor.name }} ({{ vendor.kind }})</option>
@@ -110,23 +137,55 @@
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Description</span>
-        <textarea rows="3" name="description" x-model="editForm.description" :disabled="editForm.is_imported" :class="editForm.is_imported ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional"></textarea>
+        <textarea rows="3" name="description" x-model="editForm.description" :disabled="editForm.is_imported || editForm.transfer_group_id || editForm.is_locked" :class="editForm.is_imported || editForm.transfer_group_id || editForm.is_locked ? 'bg-slate-100 text-slate-500' : 'bg-white'" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional"></textarea>
       </label>
+      <p class="text-xs text-amber-600" x-show="editForm.transfer_group_id || editForm.is_locked">
+        Transfers are locked and must be corrected via reversal.
+      </p>
         <div class="flex items-center justify-between gap-2">
           <button
             type="button"
             class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="editForm.is_imported"
+            :disabled="editForm.is_imported || editForm.transfer_group_id || editForm.is_locked"
             @click="confirmOpen = true"
           >
             Delete
           </button>
           <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="editForm.transfer_group_id || editForm.is_locked || editForm.kind === 'transfer'"
+              @click="openTransferMatch()"
+            >
+              Mark as Transfer
+            </button>
             <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" @click="editOpen = false">Cancel</button>
-            <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Save</button>
+            <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="editForm.transfer_group_id || editForm.is_locked">Save</button>
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Transfer match modal -->
+  <div
+    x-cloak
+    x-show="transferMatchOpen"
+    class="fixed inset-0 z-[125] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    @click.self="transferMatchOpen = false"
+    @keydown.escape.window="transferMatchOpen = false"
+  >
+    <div x-transition.scale.origin.top class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Match Transfer</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="transferMatchOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="p-4">
+        <div x-ref="transferMatchList"></div>
+      </div>
     </div>
   </div>
 
@@ -171,7 +230,7 @@
           </label>
           <label class="space-y-1 text-xs font-medium text-slate-600">
             <span>Account</span>
-            <select class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+            <select id="new-transaction-account" name="account_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
               <option value="">Choose account</option>
               {% for acct in accounts %}
                 <option value="{{ acct.id }}">{{ acct.name }} ({{ acct.account_type }})</option>
@@ -179,12 +238,12 @@
             </select>
           </label>
           <label class="space-y-1 text-xs font-medium text-slate-600">
-            <span>Kind</span>
-            <select class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-              <option value="transfer">Transfer</option>
-              <option value="opening">Opening</option>
+            <span>Category</span>
+            <select name="category_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="">Select category</option>
+              {% for category in categories %}
+                <option value="{{ category.id }}">{{ category.name }} ({{ category.kind }})</option>
+              {% endfor %}
             </select>
           </label>
           <label class="space-y-1 text-xs font-medium text-slate-600">
@@ -193,8 +252,13 @@
           </label>
         </div>
         <label class="space-y-1 text-xs font-medium text-slate-600">
-          <span>Payee</span>
-          <input type="text" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional">
+          <span>Vendor</span>
+          <select name="vendor_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+            <option value="">Select vendor</option>
+            {% for vendor in vendors %}
+              <option value="{{ vendor.id }}">{{ vendor.name }} ({{ vendor.kind }})</option>
+            {% endfor %}
+          </select>
         </label>
         <label class="space-y-1 text-xs font-medium text-slate-600">
           <span>Description</span>
@@ -202,7 +266,7 @@
         </label>
         <div class="flex items-center justify-end gap-2">
           <button type="button" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50" data-hs-overlay="#new-transaction-modal">Cancel</button>
-          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white opacity-60" disabled>Save</button>
+          <button type="button" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Save</button>
         </div>
       </form>
     </div>

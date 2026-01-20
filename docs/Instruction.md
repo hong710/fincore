@@ -84,6 +84,10 @@ TRANSACTION KINDS
 - expense
 - transfer
 - opening
+- withdraw
+- equity
+- liability
+- cogs
 
 RULES:
 - income/expense REQUIRE category
@@ -93,6 +97,13 @@ RULES:
 - opening amounts MUST be positive only
 - transfers are excluded from P&L
 - opening is excluded from P&L
+- withdraw is excluded from P&L
+
+====================
+CATEGORY PROTECTION
+====================
+- protected categories cannot be renamed, re-typed, deactivated, or deleted
+- description can be edited even when protected
 
 ====================
 TRANSFERS (MANDATORY)

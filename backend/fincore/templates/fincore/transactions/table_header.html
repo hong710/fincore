@@ -15,7 +15,7 @@
         name="account_id"
         class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
         x-model.number="accountId"
-        @change="page = 1; submitFilters()"
+        @change="page = 1; submitFilters(); $dispatch('transactions:account-selected', { id: accountId })"
         {% if not accounts %}disabled{% endif %}
       >
         {% if accounts %}

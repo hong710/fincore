@@ -7,7 +7,7 @@
   x-data="{
     createOpen: false,
     editOpen: false,
-    editForm: { id: null, name: '', kind: 'expense', description: '', is_active: true },
+    editForm: { id: null, name: '', kind: 'expense', description: '', is_active: true, is_protected: false },
     openEdit(data) {
       this.editForm = { ...data };
       this.editOpen = true;
@@ -70,6 +70,10 @@
                 <option value="expense" selected>Expense</option>
                 <option value="transfer">Transfer</option>
                 <option value="opening">Opening</option>
+                <option value="withdraw">Withdraw</option>
+                <option value="equity">Equity</option>
+                <option value="liability">Liability</option>
+                <option value="cogs">COGS</option>
               </select>
             </div>
             <div class="mt-6 flex h-10 items-center">
@@ -120,21 +124,25 @@
         <input type="hidden" name="category_id" x-model="editForm.id">
         <div class="space-y-1">
           <label for="cat-edit-name" class="text-sm font-medium text-slate-700">Category name *</label>
-          <input name="name" id="cat-edit-name" type="text" required x-model="editForm.name" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g., Office Supplies">
+          <input name="name" id="cat-edit-name" type="text" required x-model="editForm.name" :disabled="editForm.is_protected" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500" placeholder="e.g., Office Supplies">
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1">
             <label for="cat-edit-kind" class="text-sm font-medium text-slate-700">Kind</label>
-            <select name="kind" id="cat-edit-kind" x-model="editForm.kind" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            <select name="kind" id="cat-edit-kind" x-model="editForm.kind" :disabled="editForm.is_protected" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500">
               <option value="income">Income</option>
               <option value="expense">Expense</option>
               <option value="transfer">Transfer</option>
               <option value="opening">Opening</option>
+              <option value="withdraw">Withdraw</option>
+              <option value="equity">Equity</option>
+              <option value="liability">Liability</option>
+              <option value="cogs">COGS</option>
             </select>
           </div>
           <div class="mt-6 flex h-10 items-center">
             <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-              <input name="is_active" id="cat-edit-active" type="checkbox" x-model="editForm.is_active" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+              <input name="is_active" id="cat-edit-active" type="checkbox" x-model="editForm.is_active" :disabled="editForm.is_protected" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-60">
               <span>Active</span>
             </label>
           </div>
@@ -147,7 +155,8 @@
       <div class="flex items-center justify-between border-t border-slate-200 p-4">
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+          class="inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="editForm.is_protected"
           @click="fetch('{% url 'fincore:category_delete' 0 %}'.replace('/0/', `/${editForm.id}/`), { method: 'POST', headers: { 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [, ''])[1] } }).then((response) => { const action = response.headers.get('X-Category-Action'); if ($refs.editErrors) { $refs.editErrors.textContent = action === 'deactivated' ? 'Category is in use; marked inactive instead.' : 'Category deleted.'; } if (action === 'deleted') { editOpen = false; } if (action === 'deactivated') { editForm.is_active = false; } document.body.dispatchEvent(new CustomEvent('categories:refresh')); })"
         >
           Delete

@@ -1,10 +1,11 @@
 import "./css/styles.css";
 
 import Alpine from "alpinejs";
-import "htmx.org";
+import htmx from "htmx.org";
 import "preline";
 
 window.Alpine = Alpine;
+window.htmx = htmx;
 Alpine.start();
 
 // Re-initialize Alpine + Preline after HTMX swaps inject new markup.

@@ -3,15 +3,19 @@
 ## Entities
 - **Account**: Where money lives. Balance is always derived.
   - has `is_active` (boolean). Inactive accounts are archived, never deleted once transactions exist.
-- **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `transfer` | `opening`) and `is_active`. Imported transactions may remain uncategorized until reviewed.
-- **Transaction**: Core single-entry record (date, account, amount, kind, payee?, category?, transfer_group?, import_batch?, is_imported, description, source, created_at).
+- **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `transfer` | `opening` | `withdraw` | `equity` | `liability` | `cogs`), `is_active`, and `is_protected`. Imported transactions may remain uncategorized until reviewed.
+- **Vendor**: Counterparty directory. Has `kind` (`payer` | `payee`), `description`, `is_active`.
+- **Transaction**: Core single-entry record (date, account, amount, kind, vendor?, payee?, category?, transfer_group?, import_batch?, is_imported, description, source, created_at).
   - income  → amount > 0, category required
   - expense → amount < 0, category required
   - transfer → category required, transfer_group required
   - opening → category required; excluded from P&L; payee optional
-  - payee is free text (other party); direction is determined by kind/amount, not payee
+  - withdraw → category required; excluded from P&L
+  - vendor links to Vendor; direction is determined by kind/amount, not vendor
+  - payee is free text (legacy/optional); direction is determined by kind/amount, not payee
   - is_imported true only for CSV-created rows; every imported row links to an import_batch
   - kind is derived from category when category is present; imported rows may be uncategorized until user assigns a category
+  - protected categories cannot be renamed, re-typed, deactivated, or deleted (description may be updated)
 - **TransferGroup**: Pairs transfer transactions; sum per group must be zero.
 - **ImportBatch**: One CSV upload; status `pending|validated|imported|failed`.
 - **ImportRow**: Staged CSV rows with mapped fields + validation errors; never touch Transaction until batch commits.
@@ -26,24 +30,29 @@ Account (1) ──< Transaction >── (1) Category
 ImportBatch (1) ─────────┘
     |
 ImportBatch (1) ──< ImportRow
+Vendor (1) ───────< Transaction (optional)
 ```
 Details:
 - Transaction.account → Account (FK, PROTECT)
 - Transaction.category → Category (FK, PROTECT, nullable for imports only)
 - Transaction.transfer_group → TransferGroup (FK, PROTECT, nullable; required for transfers)
+- Transaction.vendor → Vendor (FK, PROTECT, nullable)
 - ImportRow.batch → ImportBatch (FK, CASCADE)
 
 ## Tables & Key Fields
 - **account**
   - id PK, name (unique), description?, is_active (bool, default true), created_at
 - **category**
-  - id PK, name, kind (`income|expense|transfer|opening`), description?, is_active (bool, default true), created_at
+  - id PK, name, kind (`income|expense|transfer|opening|withdraw|equity|liability|cogs`), description?, is_active (bool, default true), is_protected (bool, default false), created_at
+  - unique_together: (name, kind)
+- **vendor**
+  - id PK, name, kind (`payer|payee`), description?, is_active (bool, default true), created_at
   - unique_together: (name, kind)
 - **transfer_group**
   - id PK, reference (unique), created_at
 - **transaction**
-  - id PK, date, account_id FK, amount (signed), kind (`income|expense|transfer|opening`),
-    payee (text, optional), category_id FK NULL, transfer_group_id FK NULL,
+  - id PK, date, account_id FK, amount (signed), kind (`income|expense|transfer|opening|withdraw|equity|liability|cogs`),
+    vendor_id FK NULL, payee (text, optional), category_id FK NULL, transfer_group_id FK NULL,
     is_imported (bool, default false), import_batch_id FK NULL (PROTECT),
     description, source (`manual|csv`), created_at
   - business rules (enforced in validation/service layer):
@@ -51,13 +60,14 @@ Details:
     - expense: amount < 0 AND category_id NOT NULL
     - transfer: category_id NOT NULL AND transfer_group_id NOT NULL
     - opening: category_id NOT NULL; excluded from P&L; payee optional
+    - withdraw: category_id NOT NULL; excluded from P&L
     - imported rows may keep category_id NULL until reviewed
     - each transfer_group sums to zero (paired +/–)
     - imported rows: if is_imported=true then import_batch_id is required and matches batch that created them; all rows in a batch share the same import_batch_id; imported transfers keep both sides in the same batch
 
 ## Profit & Loss Rules
 - Default: include ALL income and expense transactions; ignore tags entirely.
-- Always exclude transfers and opening transactions.
+- Always exclude transfers, opening, and withdraw transactions.
 - Optional: user may exclude specific tags; any income/expense with an excluded tag is omitted. Transactions without tags remain included.
 - Documented behavior: “Profit & Loss shows all income and expenses by default. Tags are optional filters that can be explicitly excluded by the user.”
 

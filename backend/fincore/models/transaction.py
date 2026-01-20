@@ -21,6 +21,10 @@ class Transaction(models.Model):
         ("expense", "Expense"),
         ("transfer", "Transfer"),
         ("opening", "Opening"),
+        ("withdraw", "Withdraw"),
+        ("equity", "Equity"),
+        ("liability", "Liability"),
+        ("cogs", "COGS"),
     ]
 
     SOURCE_CHOICES = [
@@ -31,12 +35,13 @@ class Transaction(models.Model):
     date = models.DateField()
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="transactions")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    kind = models.CharField(max_length=8, choices=KIND_CHOICES)
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
     payee = models.CharField(max_length=255, blank=True, help_text="Other party involved; free text; direction determined by kind/amount.")
     vendor = models.ForeignKey(Vendor, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     transfer_group = models.ForeignKey(TransferGroup, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     is_imported = models.BooleanField(default=False, help_text="True when created from CSV import; manual/system otherwise.")
+    is_locked = models.BooleanField(default=False, help_text="Prevents edits; set when reconciled or paired as a transfer.")
     import_batch = models.ForeignKey(
         ImportBatch,
         on_delete=models.PROTECT,
@@ -53,9 +58,9 @@ class Transaction(models.Model):
         ordering = ["-date", "-id"]
 
     def save(self, *args, **kwargs):
-        if not self.is_imported and not self.category_id:
+        if not self.is_imported and self.kind != "transfer" and not self.category_id:
             raise ValueError("Category is required for non-imported transactions.")
-        if self.category_id:
+        if self.category_id and self.kind != "transfer":
             self.kind = self.category.kind
         super().save(*args, **kwargs)
 

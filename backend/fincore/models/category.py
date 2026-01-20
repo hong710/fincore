@@ -11,12 +11,17 @@ class Category(models.Model):
         ("expense", "Expense"),
         ("transfer", "Transfer"),
         ("opening", "Opening"),
+        ("withdraw", "Withdraw"),
+        ("equity", "Equity"),
+        ("liability", "Liability"),
+        ("cogs", "COGS"),
     ]
 
     name = models.CharField(max_length=100)
-    kind = models.CharField(max_length=8, choices=KIND_CHOICES)
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    is_protected = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

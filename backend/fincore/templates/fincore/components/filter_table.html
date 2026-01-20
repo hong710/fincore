@@ -55,6 +55,9 @@
       this.page = this.payload.page || 1;
       this.pageSize = this.payload.page_size || 25;
       this.accountId = this.payload.account_id || null;
+      this.$nextTick(() => {
+        this.$dispatch('transactions:account-selected', { id: this.accountId });
+      });
       this.search = this.payload.search || '';
       this.sortField = this.payload.sort || '';
       this.sortDir = this.payload.dir || 'asc';

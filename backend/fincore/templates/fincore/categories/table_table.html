@@ -37,6 +37,7 @@
         </div>
       </th>
       <th class="py-1.5 px-3 text-left align-top">Description</th>
+      <th class="py-1.5 px-2 text-center align-top w-10">Protected</th>
       <th class="py-1.5 px-3 text-left align-top">Used</th>
       <th class="py-1.5 px-3 text-left align-top">
         <div class="flex items-center gap-2">
@@ -77,12 +78,34 @@
             name: '{{ category.name|escapejs }}',
             kind: '{{ category.kind }}',
             description: '{{ category.description|default:''|escapejs }}',
-            is_active: {{ category.is_active|yesno:'true,false' }}
+            is_active: {{ category.is_active|yesno:'true,false' }},
+            is_protected: {{ category.is_protected|yesno:'true,false' }}
           })"
         >
-          <td class="px-4 py-0.5 whitespace-nowrap">{{ category.name }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap">
+            {% if category.kind == "transfer" %}
+              <a href="{% url 'fincore:category_report' category.id %}" class="text-slate-700 hover:text-indigo-600">
+                {{ category.name }}
+              </a>
+            {% else %}
+              <a href="{% url 'fincore:category_report' category.id %}" class="text-slate-700 hover:text-indigo-600">
+                {{ category.name }}
+              </a>
+            {% endif %}
+          </td>
           <td class="px-4 py-0.5 whitespace-nowrap capitalize">{{ category.kind }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap" title="{{ category.description|default:"" }}">{{ category.description|default:"-"|truncatewords:15 }}</td>
+          <td class="px-2 py-0.5 whitespace-nowrap">
+            <div class="flex items-center justify-center">
+              {% if category.is_protected %}
+                <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-label="Protected">
+                  <path fill-rule="evenodd" d="M12 1.5a4.5 4.5 0 0 0-4.5 4.5V9H6a2.25 2.25 0 0 0-2.25 2.25v9A2.25 2.25 0 0 0 6 22.5h12a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 18 9h-1.5V6A4.5 4.5 0 0 0 12 1.5Zm-3 7.5V6a3 3 0 1 1 6 0v3H9Z" clip-rule="evenodd"/>
+                </svg>
+              {% else %}
+                <span class="text-slate-400">-</span>
+              {% endif %}
+            </div>
+          </td>
           <td class="px-4 py-0.5 whitespace-nowrap text-slate-600">{{ category.transaction_count }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap">
             {% if category.is_active %}
@@ -95,7 +118,7 @@
       {% endfor %}
     {% else %}
       <tr>
-        <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">No categories available</td>
+        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-500">No categories available</td>
       </tr>
     {% endif %}
   </tbody>

@@ -274,7 +274,10 @@
             category_id: '{% if txn.category_id %}{{ txn.category_id }}{% endif %}',
             kind: '{{ txn.kind }}',
             amount: '{{ txn.amount }}',
-            is_imported: {{ txn.is_imported|yesno:'true,false' }}
+            is_imported: {{ txn.is_imported|yesno:'true,false' }},
+            account_id: {{ txn.account_id }},
+            transfer_group_id: '{% if txn.transfer_group_id %}{{ txn.transfer_group_id }}{% endif %}',
+            is_locked: {{ txn.is_locked|yesno:'true,false' }}
           })"
         >
           <td class="px-4 py-0.5 whitespace-nowrap">

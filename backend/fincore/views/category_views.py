@@ -145,16 +145,28 @@ def category_update(request):
 
     category = get_object_or_404(Category, pk=category_id)
 
-    name = (request.POST.get("name") or "").strip()
-    kind = (request.POST.get("kind") or "").strip()
+    raw_name = (request.POST.get("name") or "").strip()
+    raw_kind = (request.POST.get("kind") or "").strip()
     description = (request.POST.get("description") or "").strip()
     is_active = request.POST.get("is_active") == "on"
 
     errors = []
-    if not name:
-        errors.append("Category name is required.")
-    if kind not in dict(Category.KIND_CHOICES):
-        errors.append("Category kind is required.")
+    name = raw_name
+    kind = raw_kind
+    if category.is_protected:
+        if not name:
+            name = category.name
+        if not kind:
+            kind = category.kind
+        if (raw_name and raw_name != category.name) or (raw_kind and raw_kind != category.kind):
+            errors.append("Protected categories cannot be renamed or re-typed.")
+        if is_active != category.is_active:
+            errors.append("Protected categories cannot be deactivated.")
+    else:
+        if not name:
+            errors.append("Category name is required.")
+        if kind not in dict(Category.KIND_CHOICES):
+            errors.append("Category kind is required.")
     if Category.objects.filter(name=name, kind=kind).exclude(pk=category.pk).exists():
         errors.append("Category name must be unique within a kind.")
     if errors:
@@ -168,6 +180,7 @@ def category_update(request):
     category.name = name
     category.kind = kind
     category.description = description
+
     category.is_active = is_active
     category.save()
 
@@ -183,6 +196,13 @@ def category_delete(request, pk):
         return HttpResponseBadRequest("Invalid method")
 
     category = get_object_or_404(Category, pk=pk)
+    if category.is_protected:
+        return render(
+            request,
+            "fincore/accounts/form_errors.html",
+            {"form_errors": ["Protected categories cannot be deleted."]},
+            status=200,
+        )
     in_use = Transaction.objects.filter(category=category).exists()
     if in_use:
         if category.is_active:

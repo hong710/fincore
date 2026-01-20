@@ -1,10 +1,15 @@
 from django.urls import path
 from .views.transaction_views import (
+    category_report,
     transaction_list,
     transaction_table,
     transaction_bulk_action,
     transaction_delete,
     transaction_update,
+    transaction_transfer_matches,
+    transaction_transfer_pair,
+    transfer_list,
+    transfer_unpair,
 )
 from .views.category_views import (
     category_list,
@@ -45,10 +50,15 @@ urlpatterns = [
     path("transactions/bulk-action/", transaction_bulk_action, name="transaction_bulk_action"),
     path("transactions/<int:pk>/delete/", transaction_delete, name="transaction_delete"),
     path("transactions/update/", transaction_update, name="transaction_update"),
+    path("transactions/transfer/matches/", transaction_transfer_matches, name="transaction_transfer_matches"),
+    path("transactions/transfer/pair/", transaction_transfer_pair, name="transaction_transfer_pair"),
+    path("transfers/", transfer_list, name="transfer_list"),
+    path("transfers/<int:group_id>/unpair/", transfer_unpair, name="transfer_unpair"),
     path("categories/", category_list, name="category_list"),
     path("categories/table/", category_table, name="category_table"),
     path("categories/create/", category_create, name="category_create"),
     path("categories/update/", category_update, name="category_update"),
+    path("categories/<int:pk>/report/", category_report, name="category_report"),
     path("categories/<int:pk>/delete/", category_delete, name="category_delete"),
     path("vendors/", vendor_list, name="vendor_list"),
     path("vendors/table/", vendor_table, name="vendor_table"),

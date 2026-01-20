@@ -1,0 +1,92 @@
+{% extends "fincore/base.html" %}
+{% block title %}Transfer Reversals · Fincore{% endblock %}
+
+{% block content %}
+<div class="space-y-4 flex flex-col h-full">
+  <div class="flex items-center justify-between">
+    <div>
+      {% if category %}
+        <h1 class="text-lg font-semibold text-slate-900">{{ category.name }}</h1>
+        <p class="text-sm text-slate-500">Review paired transfers and reverse them if matched incorrectly.</p>
+      {% else %}
+        <h1 class="text-lg font-semibold text-slate-900">Transfer Reversals</h1>
+        <p class="text-sm text-slate-500">Review paired transfers and unpair them if matched incorrectly.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]">
+    <div class="overflow-auto">
+      <table class="min-w-full table-auto text-sm text-slate-800">
+        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+          <tr class="sticky top-0 bg-slate-50">
+            <th class="py-2 px-4 text-left">Date</th>
+            <th class="py-2 px-4 text-left">Vendor</th>
+            <th class="py-2 px-4 text-left">Description</th>
+            <th class="py-2 px-4 text-left">Account (Out)</th>
+            <th class="py-2 px-4 text-left">Account (In)</th>
+            <th class="py-2 px-4 text-right">Amount</th>
+            <th class="py-2 px-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% if rows %}
+            {% for row in rows %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2 align-top whitespace-nowrap">
+                  <div class="text-xs text-slate-600">{{ row.txn_out.date }}</div>
+                  <div class="text-xs text-slate-600">{{ row.txn_in.date }}</div>
+                </td>
+                <td class="px-4 py-2 align-top whitespace-nowrap">
+                  <div class="text-xs text-slate-700">{{ row.txn_out.vendor.name|default:"-" }}</div>
+                  <div class="text-xs text-slate-700">{{ row.txn_in.vendor.name|default:"-" }}</div>
+                </td>
+                <td class="px-4 py-2 align-top">
+                  <div class="text-xs text-slate-800" title="{{ row.txn_out.description|default:'' }}">{{ row.txn_out.description|default:"-"|truncatewords:10 }}</div>
+                  <div class="text-xs text-slate-800" title="{{ row.txn_in.description|default:'' }}">{{ row.txn_in.description|default:"-"|truncatewords:10 }}</div>
+                </td>
+                <td class="px-4 py-2 align-top whitespace-nowrap text-slate-700">{{ row.txn_out.account.name }}</td>
+                <td class="px-4 py-2 align-top whitespace-nowrap text-slate-700">{{ row.txn_in.account.name }}</td>
+                <td class="px-4 py-2 align-top whitespace-nowrap text-right">
+                  <div class="text-xs text-rose-600">{{ row.txn_out.amount }}</div>
+                  <div class="text-xs text-emerald-600">{{ row.txn_in.amount }}</div>
+                </td>
+                <td class="px-4 py-2 align-top whitespace-nowrap text-right">
+                  <form method="post" action="{% url 'fincore:transfer_unpair' row.group.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="inline-flex items-center rounded-md border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100">
+                      Reverse
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-500">No transfers found.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
+          {% if page_obj.has_previous %}
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.previous_page_number }}">Prev</a>
+          {% else %}
+            <span class="px-2 py-1 text-slate-400">Prev</span>
+          {% endif %}
+          <span class="border-l border-r border-slate-200 px-2 py-1">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.next_page_number }}">Next</a>
+          {% else %}
+            <span class="px-2 py-1 text-slate-400">Next</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
