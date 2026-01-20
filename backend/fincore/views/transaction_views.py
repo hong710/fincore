@@ -7,7 +7,7 @@ from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from fincore.models import Account, Category, Transaction
+from fincore.models import Account, Category, Transaction, Vendor
 
 
 def transaction_list(request):
@@ -25,6 +25,11 @@ def transaction_list(request):
         .order_by("kind", "name")
         .values("id", "name", "kind")
     )
+    vendors = list(
+        Vendor.objects.filter(is_active=True)
+        .order_by("name")
+        .values("id", "name", "kind")
+    )
     try:
         prefill_account_id = int(request.GET.get("import_account") or 0)
     except (TypeError, ValueError):
@@ -39,6 +44,7 @@ def transaction_list(request):
         {
             "accounts": accounts,
             "categories": categories,
+            "vendors": vendors,
             "prefill_account_id": prefill_account_id or None,
             "default_account_id": default_account_id,
         },
@@ -67,7 +73,7 @@ def transaction_table(request):
     if selected_account_id not in account_ids:
         selected_account_id = accounts[0]["id"] if accounts else None
 
-    qs = Transaction.objects.select_related("account", "category", "transfer_group")
+    qs = Transaction.objects.select_related("account", "category", "transfer_group", "vendor")
     base_qs = Transaction.objects.all()
     search = request.GET.get("q", "").strip()
     date_range = request.GET.get("date_range", "all")
@@ -420,31 +426,48 @@ def transaction_bulk_action(request):
     except ValueError:
         return HttpResponseBadRequest("Invalid transaction selection")
 
-    if action != "category":
+    if action not in {"category", "payee"}:
         return render(
             request,
             "fincore/accounts/form_errors.html",
-            {"form_errors": ["Only category updates are supported right now."]},
+            {"form_errors": ["Select a supported bulk action."]},
             status=200,
         )
 
-    try:
-        category_id = int(request.POST.get("category_id") or 0)
-    except (TypeError, ValueError):
-        return HttpResponseBadRequest("Invalid category")
+    if action == "category":
+        try:
+            category_id = int(request.POST.get("category_id") or 0)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("Invalid category")
 
-    category = Category.objects.filter(is_active=True, pk=category_id).first()
-    if not category:
-        return render(
-            request,
-            "fincore/accounts/form_errors.html",
-            {"form_errors": ["Select a valid active category."]},
-            status=200,
+        category = Category.objects.filter(is_active=True, pk=category_id).first()
+        if not category:
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Select a valid active category."]},
+                status=200,
+            )
+
+        Transaction.objects.filter(id__in=transaction_ids).update(
+            category=category, kind=category.kind
         )
+    elif action == "payee":
+        try:
+            vendor_id = int(request.POST.get("vendor_id") or 0)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("Invalid vendor")
 
-    Transaction.objects.filter(id__in=transaction_ids).update(
-        category=category, kind=category.kind
-    )
+        vendor = Vendor.objects.filter(is_active=True, pk=vendor_id).first()
+        if not vendor:
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Select a valid active vendor."]},
+                status=200,
+            )
+
+        Transaction.objects.filter(id__in=transaction_ids).update(vendor=vendor)
 
     resp = HttpResponse(status=204)
     resp["HX-Trigger"] = '{"transactions:refresh": true, "transactions:bulkClose": true}'
@@ -486,9 +509,20 @@ def transaction_update(request):
 
     txn = get_object_or_404(Transaction, pk=txn_id)
 
-    payee = (request.POST.get("payee") or "").strip()
+    vendor_id = (request.POST.get("vendor_id") or "").strip()
     category_id = request.POST.get("category_id") or None
     category = None
+    vendor = None
+    if vendor_id:
+        try:
+            vendor = Vendor.objects.get(pk=int(vendor_id), is_active=True)
+        except (Vendor.DoesNotExist, ValueError, TypeError):
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Invalid vendor selected."]},
+                status=200,
+            )
     if category_id:
         try:
             category = Category.objects.get(pk=int(category_id))
@@ -501,7 +535,7 @@ def transaction_update(request):
             )
 
     if txn.is_imported:
-        txn.payee = payee
+        txn.vendor = vendor
         txn.category = category
         txn.kind = category.kind if category else txn.kind
         txn.save()
@@ -539,7 +573,7 @@ def transaction_update(request):
         txn.date = parsed_date
         txn.amount = amount
         txn.description = description
-        txn.payee = payee
+        txn.vendor = vendor
         txn.category = category
         txn.kind = category.kind if category else txn.kind
         txn.save()

@@ -2,6 +2,7 @@ from django.db import models
 from .account import Account
 from .category import Category
 from .transfer_group import TransferGroup
+from .vendor import Vendor
 from .import_batch import ImportBatch
 
 
@@ -32,6 +33,7 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     kind = models.CharField(max_length=8, choices=KIND_CHOICES)
     payee = models.CharField(max_length=255, blank=True, help_text="Other party involved; free text; direction determined by kind/amount.")
+    vendor = models.ForeignKey(Vendor, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     transfer_group = models.ForeignKey(TransferGroup, on_delete=models.PROTECT, null=True, blank=True, related_name="transactions")
     is_imported = models.BooleanField(default=False, help_text="True when created from CSV import; manual/system otherwise.")

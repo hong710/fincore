@@ -8,7 +8,7 @@
     uploadOpen: false,
     editOpen: false,
     confirmOpen: false,
-    editForm: { id: null, date: '', payee: '', description: '', category_id: '', kind: '', amount: '', is_imported: false },
+    editForm: { id: null, date: '', vendor_id: '', description: '', category_id: '', kind: '', amount: '', is_imported: false },
     openEdit(data) {
       this.editForm = { ...data };
       this.editOpen = true;
@@ -100,8 +100,13 @@
         </label>
       </div>
       <label class="space-y-1 text-xs font-medium text-slate-600">
-        <span>Payee</span>
-        <input type="text" name="payee" x-model="editForm.payee" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional">
+        <span>Vendor</span>
+        <select name="vendor_id" x-model="editForm.vendor_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="">Select vendor</option>
+          {% for vendor in vendors %}
+            <option value="{{ vendor.id }}">{{ vendor.name }} ({{ vendor.kind }})</option>
+          {% endfor %}
+        </select>
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Description</span>
@@ -225,10 +230,20 @@
           <span>Action</span>
           <select name="action" x-model="action" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
             <option value="">Select action</option>
-            <option value="payee">Payee</option>
+            <option value="payee">Vendor</option>
             <option value="category">Category</option>
             <option value="delete">Delete</option>
           </select>
+        </label>
+        <label class="space-y-1 text-xs font-medium text-slate-600" x-show="action === 'payee'">
+          <span>Vendor</span>
+          <select name="vendor_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+            <option value="">Select vendor</option>
+            {% for vendor in vendors %}
+              <option value="{{ vendor.id }}">{{ vendor.name }} ({{ vendor.kind }})</option>
+            {% endfor %}
+          </select>
+          <a href="{% url 'fincore:vendor_list' %}" class="text-xs text-indigo-600 hover:text-indigo-700">Manage vendors</a>
         </label>
         <label class="space-y-1 text-xs font-medium text-slate-600" x-show="action === 'category'">
           <span>Category</span>

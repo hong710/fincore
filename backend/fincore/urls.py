@@ -13,6 +13,13 @@ from .views.category_views import (
     category_update,
     category_delete,
 )
+from .views.vendor_views import (
+    vendor_list,
+    vendor_table,
+    vendor_create,
+    vendor_update,
+    vendor_delete,
+)
 from .views.import_views import (
     account_imports,
     import_commit,
@@ -43,6 +50,11 @@ urlpatterns = [
     path("categories/create/", category_create, name="category_create"),
     path("categories/update/", category_update, name="category_update"),
     path("categories/<int:pk>/delete/", category_delete, name="category_delete"),
+    path("vendors/", vendor_list, name="vendor_list"),
+    path("vendors/table/", vendor_table, name="vendor_table"),
+    path("vendors/create/", vendor_create, name="vendor_create"),
+    path("vendors/update/", vendor_update, name="vendor_update"),
+    path("vendors/<int:pk>/delete/", vendor_delete, name="vendor_delete"),
     path("imports/stage/", import_stage, name="import_stage"),
     path("accounts/<int:account_id>/imports/", account_imports, name="account_imports"),
     path("imports/<int:batch_id>/review/", import_review, name="import_review"),

@@ -1,0 +1,100 @@
+<table class="min-w-full table-auto text-sm text-slate-800">
+  <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+    <tr class="sticky top-0 bg-slate-50">
+      <th class="py-1.5 px-3 text-left align-top">Name</th>
+      <th class="py-1.5 px-3 text-left align-top">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-slate-700">Kind</span>
+          <div class="relative inline-flex z-20" x-data="{ open: false }">
+            <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('kind') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('kind') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
+                <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
+              </svg>
+            </button>
+            <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-56 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
+              <div class="relative">
+                <input type="text" placeholder="Search kind" class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" x-model="kindSearch">
+              </div>
+              <div class="flex items-center gap-2 text-xs text-slate-600">
+                <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="selectAllKinds()">Select all</button>
+                <button type="button" class="rounded-md border border-slate-200 px-2 py-1 hover:bg-slate-50" @click="unselectAllKinds()">Unselect all</button>
+              </div>
+              <div class="max-h-40 space-y-1 overflow-y-auto">
+                <template x-for="opt in filteredKindOptions()" :key="opt">
+                  <label class="flex items-center gap-2 text-xs text-slate-700">
+                    <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.kindSelected">
+                    <span class="capitalize" x-text="opt"></span>
+                  </label>
+                </template>
+              </div>
+              <div class="flex justify-end gap-2 pt-1">
+                <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('kind'); open=false">Cancel</button>
+                <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="clearFilter('kind'); open=false">Clear</button>
+                <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('kind'); open=false">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </th>
+      <th class="py-1.5 px-3 text-left align-top">Description</th>
+      <th class="py-1.5 px-3 text-left align-top">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-slate-700">Active</span>
+          <div class="relative inline-flex z-20" x-data="{ open: false }">
+            <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('active') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('active') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
+                <path d="M3 4.5h18L14.25 12v5.25l-4.5 2.25V12L3 4.5Z"/>
+              </svg>
+            </button>
+            <div x-cloak x-show="open" @click.outside="open=false" class="absolute right-0 z-50 mt-2 w-48 rounded-md border border-slate-200 bg-white p-3 shadow-md space-y-2">
+              <div class="space-y-1">
+                <template x-for="opt in activeOptions" :key="opt">
+                  <label class="flex items-center gap-2 text-xs text-slate-700">
+                    <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.activeSelected">
+                    <span x-text="opt === 'active' ? 'Active' : 'Inactive'"></span>
+                  </label>
+                </template>
+              </div>
+              <div class="flex justify-end gap-2 pt-1">
+                <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="resetDraft('active'); open=false">Cancel</button>
+                <button type="button" class="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50" @click="clearFilter('active'); open=false">Clear</button>
+                <button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700" @click="applyDraft('active'); open=false">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-slate-200">
+    {% if page_obj.object_list %}
+      {% for vendor in page_obj.object_list %}
+        <tr
+          class="h-8 hover:bg-slate-50 transition-colors"
+          @dblclick="$dispatch('vendor-edit', {
+            id: {{ vendor.id }},
+            name: '{{ vendor.name|escapejs }}',
+            kind: '{{ vendor.kind }}',
+            description: '{{ vendor.description|default:''|escapejs }}',
+            is_active: {{ vendor.is_active|yesno:'true,false' }}
+          })"
+        >
+          <td class="px-4 py-0.5 whitespace-nowrap">{{ vendor.name }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap capitalize">{{ vendor.kind }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap" title="{{ vendor.description|default:"" }}">{{ vendor.description|default:"-"|truncatewords:15 }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap">
+            {% if vendor.is_active %}
+              <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+            {% else %}
+              <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Inactive</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td colspan="4" class="px-4 py-6 text-center text-sm text-slate-500">No vendors available</td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>

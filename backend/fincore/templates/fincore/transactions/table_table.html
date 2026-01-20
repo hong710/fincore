@@ -58,7 +58,7 @@
       </th>
       <th class="py-1.5 px-3 text-left align-top">
         <div class="flex items-center gap-2">
-          <span class="text-sm text-slate-700">Payee</span>
+          <span class="text-sm text-slate-700">Vendor</span>
           <div class="relative z-20" x-data="{ open: false }" @keydown.escape.window="open=false">
             <button type="button" class="inline-flex items-center rounded-md border bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50" :class="filterActive('payee') ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700'" @click="open=!open">
               <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" :class="filterActive('payee') ? 'text-indigo-700 fill-current' : 'text-slate-500 fill-none'">
@@ -269,7 +269,7 @@
           @dblclick="$dispatch('transaction-edit', {
             id: {{ txn.id }},
             date: '{{ txn.date|date:'Y-m-d' }}',
-            payee: '{{ txn.payee|default:''|escapejs }}',
+            vendor_id: '{% if txn.vendor_id %}{{ txn.vendor_id }}{% endif %}',
             description: '{{ txn.description|default:''|escapejs }}',
             category_id: '{% if txn.category_id %}{{ txn.category_id }}{% endif %}',
             kind: '{{ txn.kind }}',
@@ -293,7 +293,9 @@
               {% endif %}
             </div>
           </td>
-          <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.payee|default:"-" }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap">
+            {% if txn.vendor %}{{ txn.vendor.name }}{% else %}-{% endif %}
+          </td>
           <td class="px-4 py-0.5 whitespace-nowrap" title="{{ txn.description|default:"" }}">{{ txn.description|default:""|truncatewords:15 }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.category.name|default:"-" }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.get_kind_display }}</td>
