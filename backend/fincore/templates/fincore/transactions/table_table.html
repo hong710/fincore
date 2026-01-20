@@ -4,9 +4,9 @@
       <th class="py-1.5 px-3 text-left align-top w-10">
         <input type="checkbox" 
           class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-          :checked="(selectedIds || []).length === {{ page_obj.object_list|length }} && (selectedIds || []).length > 0"
-          :indeterminate="(selectedIds || []).length > 0 && (selectedIds || []).length < {{ page_obj.object_list|length }}"
-          @click="(selectedIds || []).length === {{ page_obj.object_list|length }} ? selectedIds = [] : selectedIds = [{% for txn in page_obj.object_list %}{{ txn.id }}{% if not forloop.last %},{% endif %}{% endfor %}]" />
+          :checked="(() => { const pageIds = [{% for txn in page_obj.object_list %}{{ txn.id }}{% if not forloop.last %},{% endif %}{% endfor %}]; const selectedOnPage = (selectedIds || []).filter(id => pageIds.includes(id)).length; return pageIds.length > 0 && selectedOnPage === pageIds.length; })()"
+          :indeterminate="(() => { const pageIds = [{% for txn in page_obj.object_list %}{{ txn.id }}{% if not forloop.last %},{% endif %}{% endfor %}]; const selectedOnPage = (selectedIds || []).filter(id => pageIds.includes(id)).length; return selectedOnPage > 0 && selectedOnPage < pageIds.length; })()"
+          @click="(() => { const pageIds = [{% for txn in page_obj.object_list %}{{ txn.id }}{% if not forloop.last %},{% endif %}{% endfor %}]; const selectedOnPage = (selectedIds || []).filter(id => pageIds.includes(id)).length; if (selectedOnPage === pageIds.length && pageIds.length > 0) { selectedIds = (selectedIds || []).filter(id => !pageIds.includes(id)); } else { selectedIds = Array.from(new Set([...(selectedIds || []), ...pageIds])); } })()" />
       </th>
       <th class="py-1.5 px-3 text-left align-top w-12">#</th>
       <th class="py-1.5 px-3 text-left align-top">
@@ -287,7 +287,9 @@
             <div class="flex items-center gap-2">
               <span>{{ txn.date }}</span>
               {% if txn.is_imported %}
-                <span class="inline-flex text-[8px] font-semibold capitalize tracking-wide text-blue-600">Import</span>
+                <span class="inline-flex text-[8px] font-semibold capitalize tracking-wide text-blue-600">
+                  Import{% if txn.import_batch_id %}-{{ txn.import_batch_id }}{% endif %}
+                </span>
               {% endif %}
             </div>
           </td>

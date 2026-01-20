@@ -50,6 +50,8 @@
     },
     init() {
       this.loadOptions();
+      this.selectedIds = this.loadSelection();
+      this.$watch('selectedIds', () => this.saveSelection());
       this.page = this.payload.page || 1;
       this.pageSize = this.payload.page_size || 25;
       this.accountId = this.payload.account_id || null;
@@ -90,6 +92,22 @@
       this.descriptionOptions = readJson('txn-description-options');
       this.kindOptions = readJson('txn-kind-options');
       this.categoryOptions = readJson('txn-category-options');
+    },
+    loadSelection() {
+      try {
+        const stored = window.sessionStorage.getItem('txn-selected-ids');
+        const parsed = stored ? JSON.parse(stored) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        return [];
+      }
+    },
+    saveSelection() {
+      try {
+        window.sessionStorage.setItem('txn-selected-ids', JSON.stringify(this.selectedIds || []));
+      } catch (err) {
+        // Ignore storage failures (private mode, quota, etc).
+      }
     },
     rememberSearchFocus() {
       const active = document.activeElement;
@@ -238,6 +256,8 @@
       this.search = '';
       this.sortField = '';
       this.sortDir = 'asc';
+      this.selectedIds = [];
+      this.saveSelection();
       this.filters = {
         date: { range: { type: 'all', key: '', from: '', to: '' } },
         payee: { selected: [] },
@@ -260,7 +280,7 @@
     }
   }"
   @htmx:before-request.window="rememberSearchFocus()"
-  @htmx:after-swap.window="loadOptions(); selectedIds = []; restoreSearchFocus()"
+  @htmx:after-swap.window="loadOptions(); selectedIds = loadSelection(); restoreSearchFocus()"
   @transactions:refresh.window="refreshCurrent()"
 >
   {% include "fincore/components/filter_table_shell.html" with header_template="fincore/transactions/table_header.html" table_template="fincore/transactions/table_table.html" %}
