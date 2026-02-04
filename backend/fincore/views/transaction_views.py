@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.paginator import Paginator
 from django.db import transaction as db_transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.db.models.functions import Abs
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -60,6 +60,82 @@ def _render_transfer_list(request, category=None):
     )
 
 
+REPORT_RANGE_OPTIONS = [
+    ("this_year", "This year"),
+    ("last_year", "Last year"),
+    ("this_month", "This month"),
+    ("last_month", "Last month"),
+    ("this_quarter", "This quarter"),
+    ("custom", "Custom dates"),
+]
+REPORT_RANGE_KEYS = {value for value, _label in REPORT_RANGE_OPTIONS}
+
+
+def _parse_date(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _month_bounds(year_value, month_value):
+    last_day = calendar.monthrange(year_value, month_value)[1]
+    return date(year_value, month_value, 1), date(year_value, month_value, last_day)
+
+
+def _quarter_bounds(year_value, quarter_key):
+    mapping = {"q1": (1, 3), "q2": (4, 6), "q3": (7, 9), "q4": (10, 12)}
+    start_month, end_month = mapping[quarter_key]
+    _, end_day = calendar.monthrange(year_value, end_month)
+    return date(year_value, start_month, 1), date(year_value, end_month, end_day)
+
+
+def _resolve_report_range(date_range, date_from, date_to):
+    date_range = (date_range or "this_year").strip()
+    if date_range not in REPORT_RANGE_KEYS:
+        date_range = "this_year"
+    today = date.today()
+    start_date = None
+    end_date = None
+    if date_range == "this_month":
+        start_date, end_date = _month_bounds(today.year, today.month)
+    elif date_range == "last_month":
+        last_month = today.month - 1 or 12
+        year_value = today.year - 1 if today.month == 1 else today.year
+        start_date, end_date = _month_bounds(year_value, last_month)
+    elif date_range == "last_year":
+        start_date = date(today.year - 1, 1, 1)
+        end_date = date(today.year - 1, 12, 31)
+    elif date_range == "this_year":
+        start_date = date(today.year, 1, 1)
+        end_date = date(today.year, 12, 31)
+    elif date_range == "this_quarter":
+        quarter_key = f"q{((today.month - 1) // 3) + 1}"
+        start_date, end_date = _quarter_bounds(today.year, quarter_key)
+    elif date_range == "custom":
+        start_date = _parse_date(date_from)
+        end_date = _parse_date(date_to)
+    return date_range, start_date, end_date
+
+
+def _build_goto_range(date_range, date_from, date_to):
+    today = date.today()
+    goto_date_range = date_range
+    goto_date_from = date_from
+    goto_date_to = date_to
+    if date_range == "this_quarter":
+        goto_date_range = f"q{((today.month - 1) // 3) + 1}"
+        goto_date_from = ""
+        goto_date_to = ""
+    elif date_range in {"this_year", "this_month", "last_month"}:
+        goto_date_from = ""
+        goto_date_to = ""
+    return goto_date_range, goto_date_from, goto_date_to
+
+
 def category_report(request, pk):
     category = get_object_or_404(Category, pk=pk)
     if category.kind == "transfer":
@@ -69,56 +145,13 @@ def category_report(request, pk):
     date_from = (request.GET.get("date_from") or "").strip()
     date_to = (request.GET.get("date_to") or "").strip()
 
-    valid_ranges = {"this_year", "last_year", "this_month", "last_month", "this_quarter", "custom"}
-    if date_range not in valid_ranges:
-        date_range = "this_year"
-
-    def parse_date(raw_value):
-        raw_value = (raw_value or "").strip()
-        if not raw_value:
-            return None
-        try:
-            return datetime.strptime(raw_value, "%Y-%m-%d").date()
-        except ValueError:
-            return None
-
-    def month_bounds(year_value, month_value):
-        last_day = calendar.monthrange(year_value, month_value)[1]
-        return date(year_value, month_value, 1), date(year_value, month_value, last_day)
-
-    def quarter_bounds(year_value, quarter_key):
-        mapping = {"q1": (1, 3), "q2": (4, 6), "q3": (7, 9), "q4": (10, 12)}
-        start_month, end_month = mapping[quarter_key]
-        _, end_day = calendar.monthrange(year_value, end_month)
-        return date(year_value, start_month, 1), date(year_value, end_month, end_day)
+    date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
 
     qs = (
         Transaction.objects.select_related("account", "vendor")
         .filter(category=category)
         .order_by("-date", "-id")
     )
-
-    start_date = None
-    end_date = None
-    today = date.today()
-    if date_range == "this_month":
-        start_date, end_date = month_bounds(today.year, today.month)
-    elif date_range == "last_month":
-        last_month = today.month - 1 or 12
-        year_value = today.year - 1 if today.month == 1 else today.year
-        start_date, end_date = month_bounds(year_value, last_month)
-    elif date_range == "last_year":
-        start_date = date(today.year - 1, 1, 1)
-        end_date = date(today.year - 1, 12, 31)
-    elif date_range == "this_year":
-        start_date = date(today.year, 1, 1)
-        end_date = date(today.year, 12, 31)
-    elif date_range == "this_quarter":
-        quarter_key = f"q{((today.month - 1) // 3) + 1}"
-        start_date, end_date = quarter_bounds(today.year, quarter_key)
-    elif date_range == "custom":
-        start_date = parse_date(date_from)
-        end_date = parse_date(date_to)
 
     if start_date:
         qs = qs.filter(date__gte=start_date)
@@ -133,16 +166,9 @@ def category_report(request, pk):
     paginator = Paginator(qs, page_size)
     page_obj = paginator.get_page(page_number)
 
-    goto_date_range = date_range
-    goto_date_from = date_from
-    goto_date_to = date_to
-    if date_range == "this_quarter":
-        goto_date_range = f"q{((today.month - 1) // 3) + 1}"
-        goto_date_from = ""
-        goto_date_to = ""
-    elif date_range in {"this_year", "this_month", "last_month"}:
-        goto_date_from = ""
-        goto_date_to = ""
+    goto_date_range, goto_date_from, goto_date_to = _build_goto_range(
+        date_range, date_from, date_to
+    )
 
     query_params = request.GET.copy()
     query_params.pop("page", None)
@@ -161,14 +187,99 @@ def category_report(request, pk):
             "goto_date_from": goto_date_from,
             "goto_date_to": goto_date_to,
             "filter_query": query_params.urlencode(),
-            "report_ranges": [
-                ("this_year", "This year"),
-                ("last_year", "Last year"),
-                ("this_month", "This month"),
-                ("last_month", "Last month"),
-                ("this_quarter", "This quarter"),
-                ("custom", "Custom dates"),
-            ],
+            "report_ranges": REPORT_RANGE_OPTIONS,
+        },
+    )
+
+
+def profit_loss_report(request):
+    date_range = (request.GET.get("date_range") or "this_year").strip()
+    date_from = (request.GET.get("date_from") or "").strip()
+    date_to = (request.GET.get("date_to") or "").strip()
+    account_id = (request.GET.get("account_id") or "").strip()
+    vendor_id = (request.GET.get("vendor_id") or "").strip()
+    category_id = (request.GET.get("category_id") or "").strip()
+    kind = (request.GET.get("kind") or "all").strip()
+
+    date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
+    pnl_kinds = ["income", "expense", "cogs"]
+    if kind not in pnl_kinds:
+        kind = "all"
+
+    qs = (
+        Transaction.objects.select_related("category", "account", "vendor")
+        .filter(category__isnull=False, kind__in=pnl_kinds)
+        .order_by("category__name")
+    )
+
+    if account_id.isdigit():
+        qs = qs.filter(account_id=int(account_id))
+    if vendor_id.isdigit():
+        qs = qs.filter(vendor_id=int(vendor_id))
+    if category_id.isdigit():
+        qs = qs.filter(category_id=int(category_id))
+    if kind != "all":
+        qs = qs.filter(kind=kind)
+    if start_date:
+        qs = qs.filter(date__gte=start_date)
+    if end_date:
+        qs = qs.filter(date__lte=end_date)
+
+    grouped = (
+        qs.values("category_id", "category__name", "category__kind")
+        .annotate(total=Sum("amount"))
+        .order_by("category__name")
+    )
+    for row in grouped:
+        row["display_total"] = abs(row["total"] or Decimal("0.00"))
+
+    income_rows = [row for row in grouped if row["category__kind"] == "income"]
+    cogs_rows = [row for row in grouped if row["category__kind"] == "cogs"]
+    expense_rows = [row for row in grouped if row["category__kind"] == "expense"]
+
+    income_total = sum((row["total"] for row in income_rows), Decimal("0.00"))
+    cogs_total = sum((row["total"] for row in cogs_rows), Decimal("0.00"))
+    expense_total = sum((row["total"] for row in expense_rows), Decimal("0.00"))
+    income_total_display = income_total
+    cogs_total_display = abs(cogs_total)
+    expense_total_display = abs(expense_total)
+    net_income = income_total + cogs_total + expense_total
+    net_income_display = abs(net_income)
+    net_income_is_negative = net_income < 0
+
+    accounts = Account.objects.filter(is_active=True).order_by("name")
+    vendors = Vendor.objects.filter(is_active=True).order_by("name")
+    categories = Category.objects.filter(is_active=True, kind__in=pnl_kinds).order_by(
+        "kind", "name"
+    )
+
+    return render(
+        request,
+        "fincore/reports/profit_loss.html",
+        {
+            "date_range": date_range,
+            "date_from": date_from,
+            "date_to": date_to,
+            "account_id": account_id,
+            "vendor_id": vendor_id,
+            "category_id": category_id,
+            "kind": kind,
+            "report_ranges": REPORT_RANGE_OPTIONS,
+            "accounts": accounts,
+            "vendors": vendors,
+            "categories": categories,
+            "income_rows": income_rows,
+            "cogs_rows": cogs_rows,
+            "expense_rows": expense_rows,
+            "income_total": income_total,
+            "cogs_total": cogs_total,
+            "expense_total": expense_total,
+            "income_total_display": income_total_display,
+            "cogs_total_display": cogs_total_display,
+            "expense_total_display": expense_total_display,
+            "net_income": net_income,
+            "net_income_display": net_income_display,
+            "net_income_is_negative": net_income_is_negative,
         },
     )
 

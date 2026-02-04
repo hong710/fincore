@@ -1,0 +1,196 @@
+{% extends "fincore/base.html" %}
+{% load humanize %}
+{% block title %}Profit & Loss · Fincore{% endblock %}
+
+{% block content %}
+<div class="space-y-4 flex flex-col h-full">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-lg font-semibold text-slate-900">Profit &amp; Loss</h1>
+      <p class="text-sm text-slate-500">Summary across all accounts (income, COGS, and expenses).</p>
+    </div>
+  </div>
+
+  <form class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" method="get">
+    <div class="flex flex-wrap items-end gap-4" x-data="{ range: '{{ date_range }}' }">
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Report period</span>
+        <select
+          name="date_range"
+          class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+          x-model="range"
+        >
+          {% for value, label in report_ranges %}
+            <option value="{{ value }}" {% if date_range == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
+        <span>From</span>
+        <input
+          type="date"
+          name="date_from"
+          value="{{ date_from }}"
+          class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        >
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
+        <span>To</span>
+        <input
+          type="date"
+          name="date_to"
+          value="{{ date_to }}"
+          class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        >
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Account</span>
+        <select
+          name="account_id"
+          class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        >
+          <option value="">All accounts</option>
+          {% for account in accounts %}
+            <option value="{{ account.id }}" {% if account_id|add:'' == account.id|add:'' %}selected{% endif %}>{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Vendor</span>
+        <select
+          name="vendor_id"
+          class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        >
+          <option value="">All vendors</option>
+          {% for vendor in vendors %}
+            <option value="{{ vendor.id }}" {% if vendor_id|add:'' == vendor.id|add:'' %}selected{% endif %}>{{ vendor.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Category</span>
+        <select
+          name="category_id"
+          class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        >
+          <option value="">All categories</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}" {% if category_id|add:'' == category.id|add:'' %}selected{% endif %}>{{ category.name }} ({{ category.kind }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Type</span>
+        <select
+          name="kind"
+          class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+        >
+          <option value="all" {% if kind == 'all' %}selected{% endif %}>All</option>
+          <option value="income" {% if kind == 'income' %}selected{% endif %}>Income</option>
+          <option value="cogs" {% if kind == 'cogs' %}selected{% endif %}>COGS</option>
+          <option value="expense" {% if kind == 'expense' %}selected{% endif %}>Expense</option>
+        </select>
+      </label>
+      <button
+        type="submit"
+        class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+      >
+        Apply
+      </button>
+    </div>
+  </form>
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-auto">
+      <table class="min-w-full table-auto text-sm text-slate-800">
+        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+          <tr class="sticky top-0 bg-slate-50">
+            <th class="py-2 px-4 text-left">Category</th>
+            <th class="py-2 px-4 text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% if income_rows or cogs_rows or expense_rows %}
+            <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <td class="px-4 py-2" colspan="2">Income</td>
+            </tr>
+            {% if income_rows %}
+              {% for row in income_rows %}
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-2 text-sm text-slate-700">
+                    <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:category_report' row.category_id %}?date_range={{ date_range }}{% if date_range == 'custom' and date_from %}&date_from={{ date_from }}{% endif %}{% if date_range == 'custom' and date_to %}&date_to={{ date_to }}{% endif %}">{{ row.category__name }}</a>
+                  </td>
+                  <td class="px-4 py-2 text-right text-sm text-emerald-600">{{ row.display_total|floatformat:2|intcomma }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td class="px-4 py-3 text-sm text-slate-500" colspan="2">No income in this period.</td>
+              </tr>
+            {% endif %}
+            <tr class="bg-slate-50 text-sm font-semibold text-slate-700">
+              <td class="px-4 py-2">Total Income</td>
+              <td class="px-4 py-2 text-right text-emerald-600">{{ income_total_display|floatformat:2|intcomma }}</td>
+            </tr>
+
+            <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <td class="px-4 py-2" colspan="2">Cost of Goods Sold</td>
+            </tr>
+            {% if cogs_rows %}
+              {% for row in cogs_rows %}
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-2 text-sm text-slate-700">
+                    <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:category_report' row.category_id %}?date_range={{ date_range }}{% if date_range == 'custom' and date_from %}&date_from={{ date_from }}{% endif %}{% if date_range == 'custom' and date_to %}&date_to={{ date_to }}{% endif %}">{{ row.category__name }}</a>
+                  </td>
+                  <td class="px-4 py-2 text-right text-sm text-rose-600">{{ row.display_total|floatformat:2|intcomma }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td class="px-4 py-3 text-sm text-slate-500" colspan="2">No COGS in this period.</td>
+              </tr>
+            {% endif %}
+            <tr class="bg-slate-50 text-sm font-semibold text-slate-700">
+              <td class="px-4 py-2">Total COGS</td>
+              <td class="px-4 py-2 text-right text-rose-600">{{ cogs_total_display|floatformat:2|intcomma }}</td>
+            </tr>
+
+            <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <td class="px-4 py-2" colspan="2">Expenses</td>
+            </tr>
+            {% if expense_rows %}
+              {% for row in expense_rows %}
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-2 text-sm text-slate-700">
+                    <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:category_report' row.category_id %}?date_range={{ date_range }}{% if date_range == 'custom' and date_from %}&date_from={{ date_from }}{% endif %}{% if date_range == 'custom' and date_to %}&date_to={{ date_to }}{% endif %}">{{ row.category__name }}</a>
+                  </td>
+                  <td class="px-4 py-2 text-right text-sm text-rose-600">{{ row.display_total|floatformat:2|intcomma }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td class="px-4 py-3 text-sm text-slate-500" colspan="2">No expenses in this period.</td>
+              </tr>
+            {% endif %}
+            <tr class="bg-slate-50 text-sm font-semibold text-slate-700">
+              <td class="px-4 py-2">Total Expenses</td>
+              <td class="px-4 py-2 text-right text-rose-600">{{ expense_total_display|floatformat:2|intcomma }}</td>
+            </tr>
+
+            <tr class="bg-indigo-50 text-sm font-semibold text-slate-900">
+              <td class="px-4 py-3">Net Income</td>
+              <td class="px-4 py-3 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                {{ net_income_display|floatformat:2|intcomma }}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="2" class="px-4 py-6 text-center text-sm text-slate-500">No profit &amp; loss data for the selected filters.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

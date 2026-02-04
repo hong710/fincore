@@ -1,6 +1,7 @@
 from django.urls import path
 from .views.transaction_views import (
     category_report,
+    profit_loss_report,
     transaction_list,
     transaction_table,
     transaction_bulk_action,
@@ -54,6 +55,7 @@ urlpatterns = [
     path("transactions/transfer/pair/", transaction_transfer_pair, name="transaction_transfer_pair"),
     path("transfers/", transfer_list, name="transfer_list"),
     path("transfers/<int:group_id>/unpair/", transfer_unpair, name="transfer_unpair"),
+    path("reports/profit-loss/", profit_loss_report, name="profit_loss_report"),
     path("categories/", category_list, name="category_list"),
     path("categories/table/", category_table, name="category_table"),
     path("categories/create/", category_create, name="category_create"),

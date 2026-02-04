@@ -25,6 +25,7 @@ This document captures the visual foundations we use across Storybook and Django
 - Card padding: `p-4`
 - Vertical section gap: `space-y-4`
 - Table rows: `py-2`
+- Table row hover: `hover:bg-slate-50` for all data tables
 - Base layout: fixed header, collapsible left sidebar, scrollable main, persistent footer.
 - Modals should open centered on screen (use `items-center` in the overlay wrapper).
 
@@ -38,3 +39,9 @@ This document captures the visual foundations we use across Storybook and Django
 - Icons: Heroicons SVG only (served locally).
 - Behaviors: Preline UI for dropdowns/modals; Alpine.js for UI state only.
 - HTMX will handle partial updates; keep templates HTML-first and server-driven.
+
+## Reports (Profit & Loss)
+- Layout: title + filter bar (report period, account, vendor, category, type) with a single `Apply` CTA.
+- Table: summary by category with section headers (Income, COGS, Expenses) and totals; `Net Income` highlighted in `indigo-50`.
+- Amounts: income in `emerald-600`, expenses/COGS in `rose-600`, net income color based on sign.
+- Table rows use `hover:bg-slate-50` for data rows; section/total rows remain static.
