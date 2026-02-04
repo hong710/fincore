@@ -1,0 +1,147 @@
+{% extends "fincore/base.html" %}
+{% load humanize %}
+{% block title %}Sales Transactions · Fincore{% endblock %}
+
+{% block content %}
+<div class="space-y-4 flex flex-col h-full" x-data="{ matchOpen: false, openMatch(id) { this.matchOpen = true; this.$nextTick(() => { const target = this.$refs.matchList; if (!target) return; target.innerHTML = '<p class=\"text-xs text-slate-500\">Loading matches...</p>'; if (window.htmx) { window.htmx.ajax('GET', `/sales/transactions/matches/?invoice_id=${id}`, { target }); } }); } }">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-lg font-semibold text-slate-900">Sales Transactions</h1>
+      <p class="text-sm text-slate-500">Create invoices and match them to incoming transactions.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" href="{% url 'fincore:sales_invoice_create' %}">+ New Invoice</a>
+    </div>
+  </div>
+
+  <form class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" method="get">
+    <div class="flex flex-wrap items-end gap-4" x-data="{ range: '{{ date_range }}' }">
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Report period</span>
+        <select name="date_range" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="range">
+          {% for value, label in report_ranges %}
+            <option value="{{ value }}" {% if date_range == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
+        <span>From</span>
+        <input type="date" name="date_from" value="{{ date_from }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
+        <span>To</span>
+        <input type="date" name="date_to" value="{{ date_to }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Account</span>
+        <select name="account_id" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="">All accounts</option>
+          {% for account in accounts %}
+            <option value="{{ account.id }}" {% if account_id|add:'' == account.id|add:'' %}selected{% endif %}>{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Customer</span>
+        <select name="customer_id" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="">All customers</option>
+          {% for customer in customers %}
+            <option value="{{ customer.id }}" {% if customer_id|add:'' == customer.id|add:'' %}selected{% endif %}>{{ customer.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Status</span>
+        <select name="status" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="">All</option>
+          {% for option in status_options %}
+            <option value="{{ option }}" {% if status == option %}selected{% endif %}>{{ option|capfirst }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Min total</span>
+        <input type="number" step="0.01" name="min_total" value="{{ min_total }}" class="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Max total</span>
+        <input type="number" step="0.01" name="max_total" value="{{ max_total }}" class="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Search</span>
+        <input type="text" name="q" value="{{ search }}" placeholder="Invoice #" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+      </label>
+      <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Apply</button>
+    </div>
+  </form>
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-300px)]">
+    <div class="overflow-auto">
+      <table class="min-w-full table-auto text-sm text-slate-800">
+        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+          <tr class="sticky top-0 bg-slate-50">
+            <th class="py-2 px-4 text-left">Invoice #</th>
+            <th class="py-2 px-4 text-left">Date</th>
+            <th class="py-2 px-4 text-left">Customer</th>
+            <th class="py-2 px-4 text-right">Total</th>
+            <th class="py-2 px-4 text-left">Status</th>
+            <th class="py-2 px-4 text-left">Due Date</th>
+            <th class="py-2 px-4 text-left">Account</th>
+            <th class="py-2 px-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% if page_obj.object_list %}
+            {% for invoice in page_obj.object_list %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2 text-xs font-semibold text-slate-700">{{ invoice.number }}</td>
+                <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.date|date:"M j, Y" }}</td>
+                <td class="px-4 py-2 text-xs text-slate-700">{{ invoice.customer.name }}</td>
+                <td class="px-4 py-2 text-right text-xs text-slate-900">{{ invoice.total|floatformat:2|intcomma }}</td>
+                <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.status|capfirst }}</td>
+                <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.due_date|date:"M j, Y"|default:"-" }}</td>
+                <td class="px-4 py-2 text-xs text-slate-700">{{ invoice.account.name }}</td>
+                <td class="px-4 py-2 text-right text-xs">
+                  <button type="button" class="text-indigo-600 hover:text-indigo-700" @click="openMatch({{ invoice.id }})">Match</button>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="8" class="px-4 py-6 text-center text-sm text-slate-500">No invoices found.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
+          {% if page_obj.has_previous %}
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.previous_page_number }}&date_range={{ date_range }}&date_from={{ date_from }}&date_to={{ date_to }}&account_id={{ account_id }}&customer_id={{ customer_id }}&status={{ status }}&min_total={{ min_total }}&max_total={{ max_total }}&q={{ search }}">Prev</a>
+          {% else %}
+            <span class="px-2 py-1 text-slate-400">Prev</span>
+          {% endif %}
+          <span class="border-l border-r border-slate-200 px-2 py-1">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.next_page_number }}&date_range={{ date_range }}&date_from={{ date_from }}&date_to={{ date_to }}&account_id={{ account_id }}&customer_id={{ customer_id }}&status={{ status }}&min_total={{ min_total }}&max_total={{ max_total }}&q={{ search }}">Next</a>
+          {% else %}
+            <span class="px-2 py-1 text-slate-400">Next</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div x-cloak x-show="matchOpen" class="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4" role="dialog" aria-modal="true" @click.self="matchOpen = false" @keydown.escape.window="matchOpen = false">
+    <div class="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-lg">
+      <div class="flex items-center justify-between border-b border-slate-200 p-4">
+        <h2 class="text-sm font-medium text-slate-700">Suggested Matches</h2>
+        <button class="rounded-md p-2 text-slate-500 hover:bg-slate-100" @click="matchOpen = false" aria-label="Close">✕</button>
+      </div>
+      <div class="p-4" x-ref="matchList"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

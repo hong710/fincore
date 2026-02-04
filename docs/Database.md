@@ -5,6 +5,8 @@
   - has `is_active` (boolean). Inactive accounts are archived, never deleted once transactions exist.
 - **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `transfer` | `opening` | `withdraw` | `equity` | `liability` | `cogs`), `is_active`, and `is_protected`. Imported transactions may remain uncategorized until reviewed.
 - **Vendor**: Counterparty directory. Has `kind` (`payer` | `payee`), `description`, `is_active`.
+- **Invoice**: Sales document for matching incoming transactions later. Has `number`, `customer` (Vendor, payer), `account`, `date`, `due_date`, `status`, `subtotal`, `tax_total`, `total`.
+- **InvoiceItem**: Line items for an invoice. Has `category`, `amount`, `tax`, `total`, optional `description`.
 - **Transaction**: Core single-entry record (date, account, amount, kind, vendor?, payee?, category?, transfer_group?, import_batch?, is_imported, description, source, created_at).
   - income  → amount > 0, category required
   - expense → amount < 0, category required
@@ -31,6 +33,9 @@ ImportBatch (1) ─────────┘
     |
 ImportBatch (1) ──< ImportRow
 Vendor (1) ───────< Transaction (optional)
+Vendor (1) ───────< Invoice (customer)
+Account (1) ──────< Invoice
+Invoice (1) ──────< InvoiceItem >── (1) Category
 ```
 Details:
 - Transaction.account → Account (FK, PROTECT)
@@ -48,6 +53,13 @@ Details:
 - **vendor**
   - id PK, name, kind (`payer|payee`), description?, is_active (bool, default true), created_at
   - unique_together: (name, kind)
+- **invoice**
+  - id PK, number (unique), customer_id FK (Vendor, payer), account_id FK (Account)
+  - date, due_date?, status (`draft|sent|paid|void`)
+  - subtotal, tax_total, total (derived from items on save), notes?, created_at
+- **invoice_item**
+  - id PK, invoice_id FK (CASCADE), category_id FK (PROTECT)
+  - amount, tax, total, description?, created_at
 - **transfer_group**
   - id PK, reference (unique), created_at
 - **transaction**

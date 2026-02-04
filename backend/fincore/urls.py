@@ -26,6 +26,11 @@ from .views.vendor_views import (
     vendor_update,
     vendor_delete,
 )
+from .views.sales_views import (
+    sales_transactions_list,
+    sales_invoice_create,
+    sales_invoice_matches,
+)
 from .views.import_views import (
     account_imports,
     import_commit,
@@ -56,6 +61,9 @@ urlpatterns = [
     path("transfers/", transfer_list, name="transfer_list"),
     path("transfers/<int:group_id>/unpair/", transfer_unpair, name="transfer_unpair"),
     path("reports/profit-loss/", profit_loss_report, name="profit_loss_report"),
+    path("sales/transactions/", sales_transactions_list, name="sales_transactions_list"),
+    path("sales/transactions/new/", sales_invoice_create, name="sales_invoice_create"),
+    path("sales/transactions/matches/", sales_invoice_matches, name="sales_invoice_matches"),
     path("categories/", category_list, name="category_list"),
     path("categories/table/", category_table, name="category_table"),
     path("categories/create/", category_create, name="category_create"),

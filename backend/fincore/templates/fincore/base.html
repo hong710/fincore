@@ -85,7 +85,7 @@
               <svg class="h-3.5 w-3.5 text-slate-400 transition-transform" :class="salesOpen ? 'rotate-90' : ''" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m9 5 6 7-6 7"/></svg>
             </button>
             <div class="space-y-0.5 pl-6 text-xs text-slate-600" x-show="sidebarOpen && salesOpen">
-              <a href="#" class="flex items-center gap-2 rounded-md px-3 py-2 hover:bg-slate-50">
+              <a href="{% url 'fincore:sales_transactions_list' %}" class="flex items-center gap-2 rounded-md px-3 py-2 hover:bg-slate-50">
                 <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12.75 2.25 6 3.75v16.5l6.75-1.5L18 21V4.5l-5.25-2.25Z" />
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17.25v-4.5m3 4.5v-3m3 3v-1.5" />

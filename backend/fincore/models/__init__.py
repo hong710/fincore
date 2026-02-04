@@ -5,6 +5,8 @@ from .transfer_group import TransferGroup
 from .import_batch import ImportBatch
 from .import_row import ImportRow
 from .vendor import Vendor
+from .invoice import Invoice
+from .invoice_item import InvoiceItem
 
 __all__ = [
     "Account",
@@ -14,4 +16,6 @@ __all__ = [
     "ImportBatch",
     "ImportRow",
     "Vendor",
+    "Invoice",
+    "InvoiceItem",
 ]

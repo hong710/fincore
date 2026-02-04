@@ -1,0 +1,37 @@
+{% load humanize %}
+<div class="space-y-3">
+  <div class="text-xs text-slate-600">
+    Invoice {{ invoice.number }} total {{ invoice.total|floatformat:2|intcomma }}. Suggestions are within ±30 days and the same amount.
+  </div>
+  {% if matches %}
+    <div class="overflow-hidden rounded-md border border-slate-200">
+      <table class="min-w-full text-xs text-slate-700">
+        <thead class="bg-slate-50 text-slate-600">
+          <tr>
+            <th class="px-3 py-2 text-left">Date</th>
+            <th class="px-3 py-2 text-left">Account</th>
+            <th class="px-3 py-2 text-left">Vendor</th>
+            <th class="px-3 py-2 text-right">Amount</th>
+            <th class="px-3 py-2 text-right">Goto</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for txn in matches %}
+            <tr class="hover:bg-slate-50">
+              <td class="px-3 py-2">{{ txn.date|date:"M j, Y" }}</td>
+              <td class="px-3 py-2">{{ txn.account.name }}</td>
+              <td class="px-3 py-2">{{ txn.vendor.name|default:"-" }}</td>
+              <td class="px-3 py-2 text-right">{{ txn.amount|floatformat:2|intcomma }}</td>
+              <td class="px-3 py-2 text-right">
+                <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:transaction_list' %}?account_id={{ txn.account_id }}">View</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-slate-500">Matching is manual for now; no link is saved yet.</p>
+  {% else %}
+    <div class="text-xs text-slate-500">No matching transactions found.</div>
+  {% endif %}
+</div>
