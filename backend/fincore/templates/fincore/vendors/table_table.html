@@ -23,7 +23,7 @@
                 <template x-for="opt in filteredKindOptions()" :key="opt">
                   <label class="flex items-center gap-2 text-xs text-slate-700">
                     <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" :value="opt" x-model="draft.kindSelected">
-                    <span class="capitalize" x-text="opt"></span>
+                    <span x-text="opt === 'payee' ? 'Vendor' : (opt === 'payer' ? 'Customer' : opt)"></span>
                   </label>
                 </template>
               </div>
@@ -80,7 +80,15 @@
           })"
         >
           <td class="px-4 py-0.5 whitespace-nowrap">{{ vendor.name }}</td>
-          <td class="px-4 py-0.5 whitespace-nowrap capitalize">{{ vendor.kind }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap">
+            {% if vendor.kind == 'payee' %}
+              Vendor
+            {% elif vendor.kind == 'payer' %}
+              Customer
+            {% else %}
+              {{ vendor.kind }}
+            {% endif %}
+          </td>
           <td class="px-4 py-0.5 whitespace-nowrap" title="{{ vendor.description|default:"" }}">{{ vendor.description|default:"-"|truncatewords:15 }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap">
             {% if vendor.is_active %}

@@ -11,8 +11,13 @@
     </div>
   </div>
 
-  <form class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" method="get">
-    <div class="flex flex-wrap items-end gap-4" x-data="{ range: '{{ date_range }}' }">
+  <!-- Filter Form -->
+  <form 
+    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+    id="pl-form"
+  >
+    <div class="flex flex-wrap items-end gap-4" x-data="{ range: '{{ filters.date_range }}' }">
+      <!-- Report Period -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Report period</span>
         <select
@@ -21,16 +26,18 @@
           x-model="range"
         >
           {% for value, label in report_ranges %}
-            <option value="{{ value }}" {% if date_range == value %}selected{% endif %}>{{ label }}</option>
+            <option value="{{ value }}" {% if filters.date_range == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </label>
+
+      <!-- Custom Date Range (hidden by default) -->
       <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
         <span>From</span>
         <input
           type="date"
           name="date_from"
-          value="{{ date_from }}"
+          value="{{ filters.date_from }}"
           class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
         >
       </label>
@@ -39,158 +46,128 @@
         <input
           type="date"
           name="date_to"
-          value="{{ date_to }}"
+          value="{{ filters.date_to }}"
           class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
         >
       </label>
+
+      <!-- Account -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Account</span>
         <select
           name="account_id"
           class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
         >
-          <option value="">All accounts</option>
+          <option value="" {% if filters.account_id == '' %}selected{% endif %}>All accounts</option>
           {% for account in accounts %}
-            <option value="{{ account.id }}" {% if account_id|add:'' == account.id|add:'' %}selected{% endif %}>{{ account.name }}</option>
+            <option value="{{ account.id }}" {% if filters.account_id|stringformat:"s" == account.id|stringformat:"s" %}selected{% endif %}>{{ account.name }}</option>
           {% endfor %}
         </select>
       </label>
+
+      <!-- Vendor -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Vendor</span>
         <select
           name="vendor_id"
           class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
         >
-          <option value="">All vendors</option>
+          <option value="" {% if filters.vendor_id == '' %}selected{% endif %}>All vendors</option>
           {% for vendor in vendors %}
-            <option value="{{ vendor.id }}" {% if vendor_id|add:'' == vendor.id|add:'' %}selected{% endif %}>{{ vendor.name }}</option>
+            <option value="{{ vendor.id }}" {% if filters.vendor_id|stringformat:"s" == vendor.id|stringformat:"s" %}selected{% endif %}>{{ vendor.name }}</option>
           {% endfor %}
         </select>
       </label>
+
+      <!-- Category -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Category</span>
         <select
           name="category_id"
           class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
         >
-          <option value="">All categories</option>
+          <option value="" {% if filters.category_id == '' %}selected{% endif %}>All categories</option>
           {% for category in categories %}
-            <option value="{{ category.id }}" {% if category_id|add:'' == category.id|add:'' %}selected{% endif %}>{{ category.name }} ({{ category.kind }})</option>
+            <option value="{{ category.id }}" {% if filters.category_id|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }} ({{ category.kind }})</option>
           {% endfor %}
         </select>
       </label>
+
+      <!-- Type -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Type</span>
         <select
           name="kind"
           class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
         >
-          <option value="all" {% if kind == 'all' %}selected{% endif %}>All</option>
-          <option value="income" {% if kind == 'income' %}selected{% endif %}>Income</option>
-          <option value="cogs" {% if kind == 'cogs' %}selected{% endif %}>COGS</option>
-          <option value="expense" {% if kind == 'expense' %}selected{% endif %}>Expense</option>
+          <option value="all" {% if filters.kind == 'all' %}selected{% endif %}>All</option>
+          <option value="income" {% if filters.kind == 'income' %}selected{% endif %}>Income</option>
+          <option value="cogs" {% if filters.kind == 'cogs' %}selected{% endif %}>COGS</option>
+          <option value="expense" {% if filters.kind == 'expense' %}selected{% endif %}>Expense</option>
         </select>
       </label>
+
+      <!-- Apply Button -->
       <button
-        type="submit"
+        type="button"
         class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        onclick="submitFilters()"
       >
         Apply
       </button>
+
+      <!-- Clear Button -->
+      <a
+        href="{% url 'fincore:profit_loss_report' %}"
+        class="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+      >
+        Clear Filters
+      </a>
     </div>
   </form>
 
-  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-    <div class="overflow-auto">
-      <table class="min-w-full table-auto text-sm text-slate-800">
-        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
-          <tr class="sticky top-0 bg-slate-50">
-            <th class="py-2 px-4 text-left">Category</th>
-            <th class="py-2 px-4 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200">
-          {% if income_rows or cogs_rows or expense_rows %}
-            <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <td class="px-4 py-2" colspan="2">Income</td>
-            </tr>
-            {% if income_rows %}
-              {% for row in income_rows %}
-                <tr class="hover:bg-slate-50">
-                  <td class="px-4 py-2 text-sm text-slate-700">
-                    <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:category_report' row.category_id %}?date_range={{ date_range }}{% if date_range == 'custom' and date_from %}&date_from={{ date_from }}{% endif %}{% if date_range == 'custom' and date_to %}&date_to={{ date_to }}{% endif %}">{{ row.category__name }}</a>
-                  </td>
-                  <td class="px-4 py-2 text-right text-sm text-emerald-600">{{ row.display_total|floatformat:2|intcomma }}</td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td class="px-4 py-3 text-sm text-slate-500" colspan="2">No income in this period.</td>
-              </tr>
-            {% endif %}
-            <tr class="bg-slate-50 text-sm font-semibold text-slate-700">
-              <td class="px-4 py-2">Total Income</td>
-              <td class="px-4 py-2 text-right text-emerald-600">{{ income_total_display|floatformat:2|intcomma }}</td>
-            </tr>
-
-            <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <td class="px-4 py-2" colspan="2">Cost of Goods Sold</td>
-            </tr>
-            {% if cogs_rows %}
-              {% for row in cogs_rows %}
-                <tr class="hover:bg-slate-50">
-                  <td class="px-4 py-2 text-sm text-slate-700">
-                    <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:category_report' row.category_id %}?date_range={{ date_range }}{% if date_range == 'custom' and date_from %}&date_from={{ date_from }}{% endif %}{% if date_range == 'custom' and date_to %}&date_to={{ date_to }}{% endif %}">{{ row.category__name }}</a>
-                  </td>
-                  <td class="px-4 py-2 text-right text-sm text-rose-600">{{ row.display_total|floatformat:2|intcomma }}</td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td class="px-4 py-3 text-sm text-slate-500" colspan="2">No COGS in this period.</td>
-              </tr>
-            {% endif %}
-            <tr class="bg-slate-50 text-sm font-semibold text-slate-700">
-              <td class="px-4 py-2">Total COGS</td>
-              <td class="px-4 py-2 text-right text-rose-600">{{ cogs_total_display|floatformat:2|intcomma }}</td>
-            </tr>
-
-            <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <td class="px-4 py-2" colspan="2">Expenses</td>
-            </tr>
-            {% if expense_rows %}
-              {% for row in expense_rows %}
-                <tr class="hover:bg-slate-50">
-                  <td class="px-4 py-2 text-sm text-slate-700">
-                    <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:category_report' row.category_id %}?date_range={{ date_range }}{% if date_range == 'custom' and date_from %}&date_from={{ date_from }}{% endif %}{% if date_range == 'custom' and date_to %}&date_to={{ date_to }}{% endif %}">{{ row.category__name }}</a>
-                  </td>
-                  <td class="px-4 py-2 text-right text-sm text-rose-600">{{ row.display_total|floatformat:2|intcomma }}</td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td class="px-4 py-3 text-sm text-slate-500" colspan="2">No expenses in this period.</td>
-              </tr>
-            {% endif %}
-            <tr class="bg-slate-50 text-sm font-semibold text-slate-700">
-              <td class="px-4 py-2">Total Expenses</td>
-              <td class="px-4 py-2 text-right text-rose-600">{{ expense_total_display|floatformat:2|intcomma }}</td>
-            </tr>
-
-            <tr class="bg-indigo-50 text-sm font-semibold text-slate-900">
-              <td class="px-4 py-3">Net Income</td>
-              <td class="px-4 py-3 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %}">
-                {{ net_income_display|floatformat:2|intcomma }}
-              </td>
-            </tr>
-          {% else %}
-            <tr>
-              <td colspan="2" class="px-4 py-6 text-center text-sm text-slate-500">No profit &amp; loss data for the selected filters.</td>
-            </tr>
-          {% endif %}
-        </tbody>
-      </table>
+  <!-- Content Section (HTMX target) -->
+  <div 
+    id="pl-content" 
+    class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+    hx-get="{% url 'fincore:profit_loss_content' %}"
+    hx-trigger="load"
+  >
+    <!-- Loading state - will be replaced by HTMX -->
+    <div class="flex items-center justify-center py-8">
+      <p class="text-slate-500">Loading report...</p>
     </div>
   </div>
 </div>
+
+<script>
+function submitFilters() {
+  const form = document.getElementById('pl-form');
+  const formData = new FormData(form);
+  const params = new URLSearchParams(formData);
+  params.set('apply', '1');
+  
+  const url = '{% url "fincore:profit_loss_content" %}?' + params.toString();
+  
+  htmx.ajax('GET', url, {
+    target: '#pl-content',
+    swap: 'innerHTML'
+  });
+}
+
+// Load initial content on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('pl-form');
+  const formData = new FormData(form);
+  const params = new URLSearchParams(formData);
+  params.set('apply', '0');
+  
+  const url = '{% url "fincore:profit_loss_content" %}?' + params.toString();
+  
+  htmx.ajax('GET', url, {
+    target: '#pl-content',
+    swap: 'innerHTML'
+  });
+});
+</script>
 {% endblock %}

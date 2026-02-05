@@ -158,6 +158,9 @@ def category_report(request, pk):
     if end_date:
         qs = qs.filter(date__lte=end_date)
 
+    # Calculate total for all filtered transactions
+    total_amount = qs.aggregate(total=Sum("amount"))["total"] or 0
+
     page_size = 25
     try:
         page_number = int(request.GET.get("page") or 1)
@@ -188,11 +191,13 @@ def category_report(request, pk):
             "goto_date_to": goto_date_to,
             "filter_query": query_params.urlencode(),
             "report_ranges": REPORT_RANGE_OPTIONS,
+            "total_amount": total_amount,
         },
     )
 
 
 def profit_loss_report(request):
+    # Get filter values (always from URL, regardless of apply flag)
     date_range = (request.GET.get("date_range") or "this_year").strip()
     date_from = (request.GET.get("date_from") or "").strip()
     date_to = (request.GET.get("date_to") or "").strip()
@@ -200,6 +205,14 @@ def profit_loss_report(request):
     vendor_id = (request.GET.get("vendor_id") or "").strip()
     category_id = (request.GET.get("category_id") or "").strip()
     kind = (request.GET.get("kind") or "all").strip()
+    
+    # Only apply filters if apply=1 in URL
+    apply_filters = (request.GET.get("apply") or "").strip() == "1"
+    if not apply_filters:
+        account_id = ""
+        vendor_id = ""
+        category_id = ""
+        kind = "all"
 
     date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
     pnl_kinds = ["income", "expense", "cogs"]
@@ -214,10 +227,16 @@ def profit_loss_report(request):
 
     if account_id.isdigit():
         qs = qs.filter(account_id=int(account_id))
+    else:
+        account_id = ""
     if vendor_id.isdigit():
         qs = qs.filter(vendor_id=int(vendor_id))
+    else:
+        vendor_id = ""
     if category_id.isdigit():
         qs = qs.filter(category_id=int(category_id))
+    else:
+        category_id = ""
     if kind != "all":
         qs = qs.filter(kind=kind)
     if start_date:
@@ -253,17 +272,139 @@ def profit_loss_report(request):
         "kind", "name"
     )
 
+    # Build filters dict for template
+    filters = {
+        "date_range": date_range,
+        "date_from": date_from,
+        "date_to": date_to,
+        "account_id": account_id,
+        "vendor_id": vendor_id,
+        "category_id": category_id,
+        "kind": kind,
+    }
+
     return render(
         request,
         "fincore/reports/profit_loss.html",
         {
-            "date_range": date_range,
-            "date_from": date_from,
-            "date_to": date_to,
-            "account_id": account_id,
-            "vendor_id": vendor_id,
-            "category_id": category_id,
-            "kind": kind,
+            "filters": filters,
+            "apply_filters": apply_filters,
+            "report_ranges": REPORT_RANGE_OPTIONS,
+            "accounts": accounts,
+            "vendors": vendors,
+            "categories": categories,
+            "income_rows": income_rows,
+            "cogs_rows": cogs_rows,
+            "expense_rows": expense_rows,
+            "income_total": income_total,
+            "cogs_total": cogs_total,
+            "expense_total": expense_total,
+            "income_total_display": income_total_display,
+            "cogs_total_display": cogs_total_display,
+            "expense_total_display": expense_total_display,
+            "net_income": net_income,
+            "net_income_display": net_income_display,
+            "net_income_is_negative": net_income_is_negative,
+        },
+    )
+
+
+def profit_loss_content(request):
+    """
+    HTMX endpoint that returns just the P&L table content (for filter updates).
+    Reuses the same logic as profit_loss_report but renders a partial template.
+    """
+    # Get filter values (always from URL)
+    date_range = (request.GET.get("date_range") or "this_year").strip()
+    date_from = (request.GET.get("date_from") or "").strip()
+    date_to = (request.GET.get("date_to") or "").strip()
+    account_id = (request.GET.get("account_id") or "").strip()
+    vendor_id = (request.GET.get("vendor_id") or "").strip()
+    category_id = (request.GET.get("category_id") or "").strip()
+    kind = (request.GET.get("kind") or "all").strip()
+    
+    # Only apply filters if apply=1 in URL
+    apply_filters = (request.GET.get("apply") or "").strip() == "1"
+    if not apply_filters:
+        account_id = ""
+        vendor_id = ""
+        category_id = ""
+        kind = "all"
+
+    date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
+    pnl_kinds = ["income", "expense", "cogs"]
+    if kind not in pnl_kinds:
+        kind = "all"
+
+    qs = (
+        Transaction.objects.select_related("category", "account", "vendor")
+        .filter(category__isnull=False, kind__in=pnl_kinds)
+        .order_by("category__name")
+    )
+
+    if account_id.isdigit():
+        qs = qs.filter(account_id=int(account_id))
+    else:
+        account_id = ""
+    if vendor_id.isdigit():
+        qs = qs.filter(vendor_id=int(vendor_id))
+    else:
+        vendor_id = ""
+    if category_id.isdigit():
+        qs = qs.filter(category_id=int(category_id))
+    else:
+        category_id = ""
+    if kind != "all":
+        qs = qs.filter(kind=kind)
+    if start_date:
+        qs = qs.filter(date__gte=start_date)
+    if end_date:
+        qs = qs.filter(date__lte=end_date)
+
+    grouped = (
+        qs.values("category_id", "category__name", "category__kind")
+        .annotate(total=Sum("amount"))
+        .order_by("category__name")
+    )
+    for row in grouped:
+        row["display_total"] = abs(row["total"] or Decimal("0.00"))
+
+    income_rows = [row for row in grouped if row["category__kind"] == "income"]
+    cogs_rows = [row for row in grouped if row["category__kind"] == "cogs"]
+    expense_rows = [row for row in grouped if row["category__kind"] == "expense"]
+
+    income_total = sum((row["total"] for row in income_rows), Decimal("0.00"))
+    cogs_total = sum((row["total"] for row in cogs_rows), Decimal("0.00"))
+    expense_total = sum((row["total"] for row in expense_rows), Decimal("0.00"))
+    income_total_display = income_total
+    cogs_total_display = abs(cogs_total)
+    expense_total_display = abs(expense_total)
+    net_income = income_total + cogs_total + expense_total
+    net_income_display = abs(net_income)
+    net_income_is_negative = net_income < 0
+
+    accounts = Account.objects.filter(is_active=True).order_by("name")
+    vendors = Vendor.objects.filter(is_active=True).order_by("name")
+    categories = Category.objects.filter(is_active=True, kind__in=pnl_kinds).order_by(
+        "kind", "name"
+    )
+
+    # Build filters dict for template
+    filters = {
+        "date_range": date_range,
+        "date_from": date_from,
+        "date_to": date_to,
+        "account_id": account_id,
+        "vendor_id": vendor_id,
+        "category_id": category_id,
+        "kind": kind,
+    }
+
+    return render(
+        request,
+        "fincore/reports/profit_loss_content.html",
+        {
+            "filters": filters,
             "report_ranges": REPORT_RANGE_OPTIONS,
             "accounts": accounts,
             "vendors": vendors,

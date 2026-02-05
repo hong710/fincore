@@ -52,47 +52,59 @@
   </form>
 
   <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-260px)]">
-    <div class="overflow-auto">
-      <table class="min-w-full table-auto text-sm text-slate-800">
-        <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
-          <tr class="sticky top-0 bg-slate-50">
-            <th class="py-2 px-4 text-left">Date</th>
-            <th class="py-2 px-4 text-left">Vendor</th>
-            <th class="py-2 px-4 text-left">Description</th>
-            <th class="py-2 px-4 text-left">Account</th>
-            <th class="py-2 px-4 text-right">Amount</th>
-            <th class="py-2 px-4 text-right">Goto</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200">
-          {% if page_obj.object_list %}
-            {% for txn in page_obj.object_list %}
-              <tr class="hover:bg-slate-50">
-                <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-600">{{ txn.date|date:"M j, Y" }}</td>
-                <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700">{{ txn.vendor.name|default:"-" }}</td>
-                <td class="px-4 py-2 text-xs text-slate-800" title="{{ txn.description|default:'' }}">{{ txn.description|default:"-"|truncatewords:12 }}</td>
-                <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700">{{ txn.account.name }}</td>
-                <td class="px-4 py-2 whitespace-nowrap text-right text-xs {% if txn.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
-                  {{ txn.amount }}
-                </td>
-                <td class="px-4 py-2 whitespace-nowrap text-right text-xs">
-                  <a
-                    class="text-indigo-600 hover:text-indigo-700"
-                    href="{% url 'fincore:transaction_list' %}?account_id={{ txn.account_id }}&category={{ category.id }}&date_range={{ goto_date_range }}{% if goto_date_from %}&date_from={{ goto_date_from }}{% endif %}{% if goto_date_to %}&date_to={{ goto_date_to }}{% endif %}"
-                  >
-                    View
-                  </a>
-                </td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr>
-              <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-500">No transactions found.</td>
+    <table class="w-full h-full flex flex-col">
+      <thead class="flex-shrink-0 sticky top-0 z-20 bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+        <tr class="flex w-full">
+          <th class="py-2 px-4 text-left flex-1">Date</th>
+          <th class="py-2 px-4 text-left flex-1">Vendor</th>
+          <th class="py-2 px-4 text-left flex-1">Description</th>
+          <th class="py-2 px-4 text-left flex-1">Account</th>
+          <th class="py-2 px-4 text-right flex-1">Amount</th>
+          <th class="py-2 px-4 text-right flex-1">Goto</th>
+        </tr>
+      </thead>
+      <tbody class="flex-1 overflow-y-auto divide-y divide-slate-200 min-h-0">
+        {% if page_obj.object_list %}
+          {% for txn in page_obj.object_list %}
+            <tr class="flex w-full hover:bg-slate-50">
+              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-600 flex-1">{{ txn.date|date:"M j, Y" }}</td>
+              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700 flex-1">{{ txn.vendor.name|default:"-" }}</td>
+              <td class="px-4 py-2 text-xs text-slate-800 flex-1 overflow-hidden" title="{{ txn.description|default:'' }}">{{ txn.description|default:"-"|truncatewords:12 }}</td>
+              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700 flex-1">{{ txn.account.name }}</td>
+              <td class="px-4 py-2 whitespace-nowrap text-right text-xs flex-1 {% if txn.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                {{ txn.amount }}
+              </td>
+              <td class="px-4 py-2 whitespace-nowrap text-right text-xs flex-1">
+                <a
+                  class="text-indigo-600 hover:text-indigo-700"
+                  href="{% url 'fincore:transaction_list' %}?account_id={{ txn.account_id }}&category={{ category.id }}&date_range={{ goto_date_range }}{% if goto_date_from %}&date_from={{ goto_date_from }}{% endif %}{% if goto_date_to %}&date_to={{ goto_date_to }}{% endif %}"
+                >
+                  View
+                </a>
+              </td>
             </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
+          {% endfor %}
+        {% else %}
+          <tr class="flex w-full">
+            <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-500 w-full">No transactions found.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+      {% if page_obj.object_list %}
+      <tfoot class="flex-shrink-0 sticky bottom-0 z-10 bg-slate-50 font-semibold border-t-2 border-slate-300">
+        <tr class="flex w-full">
+          <td class="px-4 py-2 text-xs text-slate-700 flex-1">Total</td>
+          <td class="px-4 py-2 flex-1"></td>
+          <td class="px-4 py-2 flex-1"></td>
+          <td class="px-4 py-2 flex-1"></td>
+          <td class="px-4 py-2 whitespace-nowrap text-right text-xs flex-1 {% if total_amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+            {{ total_amount|floatformat:2 }}
+          </td>
+          <td class="px-4 py-2 flex-1"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
     {% if page_obj.paginator.num_pages > 1 %}
       <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
         <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
