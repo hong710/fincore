@@ -7,6 +7,7 @@ from .import_row import ImportRow
 from .vendor import Vendor
 from .invoice import Invoice
 from .invoice_item import InvoiceItem
+from .invoice_payment import InvoicePayment
 
 __all__ = [
     "Account",
@@ -18,4 +19,5 @@ __all__ = [
     "Vendor",
     "Invoice",
     "InvoiceItem",
+    "InvoicePayment",
 ]

@@ -7,6 +7,7 @@
 - **Vendor**: Counterparty directory. Has `kind` (`payer` | `payee`), `description`, `is_active`.
 - **Invoice**: Sales document for matching incoming transactions later. Has `number`, `customer` (Vendor, payer), `account`, `date`, `due_date`, `status`, `subtotal`, `tax_total`, `total`.
 - **InvoiceItem**: Line items for an invoice. Has `category`, `amount`, `tax`, `total`, optional `description`.
+- **InvoicePayment**: Link between an invoice and a cash transaction. Supports partial payments; stores matched amount and timestamp.
 - **Transaction**: Core single-entry record (date, account, amount, kind, vendor?, payee?, category?, transfer_group?, import_batch?, is_imported, description, source, created_at).
   - income  → amount > 0, category required
   - expense → amount < 0, category required
@@ -36,6 +37,7 @@ Vendor (1) ───────< Transaction (optional)
 Vendor (1) ───────< Invoice (customer)
 Account (1) ──────< Invoice
 Invoice (1) ──────< InvoiceItem >── (1) Category
+Invoice (1) ──────< InvoicePayment >── (1) Transaction
 ```
 Details:
 - Transaction.account → Account (FK, PROTECT)
@@ -55,11 +57,15 @@ Details:
   - unique_together: (name, kind)
 - **invoice**
   - id PK, number (unique), customer_id FK (Vendor, payer), account_id FK (Account)
-  - date, due_date?, status (`draft|sent|paid|void`)
+  - date, due_date?, status (`draft|sent|partially_paid|paid|void`)
   - subtotal, tax_total, total (derived from items on save), notes?, created_at
 - **invoice_item**
   - id PK, invoice_id FK (CASCADE), category_id FK (PROTECT)
   - amount, tax, total, description?, created_at
+- **invoice_payment**
+  - id PK, invoice_id FK (PROTECT), transaction_id FK (PROTECT)
+  - amount, matched_at
+  - unique_together: (invoice_id, transaction_id)
 - **transfer_group**
   - id PK, reference (unique), created_at
 - **transaction**
@@ -78,10 +84,11 @@ Details:
     - imported rows: if is_imported=true then import_batch_id is required and matches batch that created them; all rows in a batch share the same import_batch_id; imported transfers keep both sides in the same batch
 
 ## Profit & Loss Rules
-- Default: include ALL income and expense transactions; ignore tags entirely.
+- Income is derived **only** from InvoiceItems (by category).
+- Expenses/COGS come from Transactions with kind `expense` or `cogs`.
 - Always exclude transfers, opening, and withdraw transactions.
-- Optional: user may exclude specific tags; any income/expense with an excluded tag is omitted. Transactions without tags remain included.
-- Documented behavior: “Profit & Loss shows all income and expenses by default. Tags are optional filters that can be explicitly excluded by the user.”
+- Transactions that are matched to invoices (InvoicePayment exists) are excluded from P&L.
+- Documented behavior: “Profit & Loss shows invoice revenue and cash expenses. Matched invoice payments never double-count revenue.”
 
 ## Account Lifecycle
 - Accounts with any transactions must never be hard-deleted. Archive by setting `is_active = false`.

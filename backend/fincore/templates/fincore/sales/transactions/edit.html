@@ -1,13 +1,13 @@
 {% extends "fincore/base.html" %}
-{% block title %}New Invoice · Fincore{% endblock %}
+{% block title %}Edit Invoice · Fincore{% endblock %}
 
 {% block content %}
 <div class="space-y-4 flex flex-col h-full">
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-lg font-semibold text-slate-900">New Invoice</h1>
-      <p class="text-sm text-slate-500">Create a sales invoice with line items.</p>
-      <p class="text-xs text-slate-500">Invoice #: (assigned on save)</p>
+      <h1 class="text-lg font-semibold text-slate-900">Edit Invoice</h1>
+      <p class="text-sm text-slate-500">Update a sales invoice with line items.</p>
+      <p class="text-xs text-slate-500">Invoice #: {{ invoice.number }}</p>
     </div>
   </div>
 
@@ -31,7 +31,7 @@
         <select name="customer_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
           <option value="">Select customer</option>
           {% for customer in customers %}
-            <option value="{{ customer.id }}" {% if customer.id|stringformat:'s' == request.POST.customer_id %}selected{% endif %}>{{ customer.name }}</option>
+            <option value="{{ customer.id }}" {% if customer.id|stringformat:'s' == request.POST.customer_id or customer.id == invoice.customer_id %}selected{% endif %}>{{ customer.name }}</option>
           {% endfor %}
         </select>
       </label>
@@ -40,13 +40,13 @@
         <select name="account_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
           <option value="">Select account</option>
           {% for account in accounts %}
-            <option value="{{ account.id }}" {% if account.id|stringformat:'s' == request.POST.account_id %}selected{% endif %}>{{ account.name }}</option>
+            <option value="{{ account.id }}" {% if account.id|stringformat:'s' == request.POST.account_id or account.id == invoice.account_id %}selected{% endif %}>{{ account.name }}</option>
           {% endfor %}
         </select>
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Invoice date</span>
-        <input type="date" name="date" value="{{ request.POST.date }}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        <input type="date" name="date" value="{{ request.POST.date|default:invoice.date|date:'Y-m-d' }}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Tax rate (%)</span>
@@ -133,7 +133,7 @@
 
     <label class="space-y-1 text-xs font-medium text-slate-600">
       <span>Notes</span>
-      <textarea name="notes" rows="3" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional">{{ request.POST.notes }}</textarea>
+      <textarea name="notes" rows="3" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional">{{ request.POST.notes|default:invoice.notes }}</textarea>
     </label>
 
     <div class="flex items-center justify-end gap-2">

@@ -300,7 +300,19 @@
             {% if txn.vendor %}{{ txn.vendor.name }}{% else %}-{% endif %}
           </td>
           <td class="px-4 py-0.5 whitespace-nowrap" title="{{ txn.description|default:"" }}">{{ txn.description|default:""|truncatewords:15 }}</td>
-          <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.category.name|default:"-" }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap">
+            {% with invoice_label=txn.invoice_display_label %}
+              {% if invoice_label %}
+                {% if txn.invoice_display_link %}
+                  <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:sales_invoice_detail' txn.invoice_display_link %}">{{ invoice_label }}</a>
+                {% else %}
+                  <span class="text-slate-600">{{ invoice_label }}</span>
+                {% endif %}
+              {% else %}
+                {{ txn.category.name|default:"-" }}
+              {% endif %}
+            {% endwith %}
+          </td>
           <td class="px-4 py-0.5 whitespace-nowrap">{{ txn.get_kind_display }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap text-right {% if amount > 0 %}text-emerald-600{% elif amount < 0 %}text-rose-600{% else %}text-slate-500{% endif %}">
             {% if amount > 0 %}

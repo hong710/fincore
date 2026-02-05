@@ -6,11 +6,18 @@ from decimal import Decimal, InvalidOperation
 from django.core.paginator import Paginator
 from django.db import transaction as db_transaction
 from django.db.models import Q, Sum
-from django.db.models.functions import Abs
+from django.db.models.functions import (
+    Abs,
+    TruncDay,
+    TruncMonth,
+    TruncQuarter,
+    TruncWeek,
+    TruncYear,
+)
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from fincore.models import Account, Category, Transaction, TransferGroup, Vendor
+from fincore.models import Account, Category, InvoiceItem, Transaction, TransferGroup, Vendor
 
 
 def _render_transfer_list(request, category=None):
@@ -69,6 +76,18 @@ REPORT_RANGE_OPTIONS = [
     ("custom", "Custom dates"),
 ]
 REPORT_RANGE_KEYS = {value for value, _label in REPORT_RANGE_OPTIONS}
+
+DISPLAY_BY_OPTIONS = [
+    ("days", "Days"),
+    ("weeks", "Weeks"),
+    ("months", "Months"),
+    ("quarters", "Quarters"),
+    ("years", "Years"),
+    ("customer", "Customer"),
+    ("vendor", "Vendor"),
+    ("product", "Product / Service"),
+]
+DISPLAY_BY_KEYS = {value for value, _label in DISPLAY_BY_OPTIONS}
 
 
 def _parse_date(value):
@@ -136,6 +155,113 @@ def _build_goto_range(date_range, date_from, date_to):
     return goto_date_range, goto_date_from, goto_date_to
 
 
+def _default_date_bounds(date_range):
+    today = date.today()
+    if date_range == "this_month":
+        return _month_bounds(today.year, today.month)
+    if date_range == "last_month":
+        last_month = today.month - 1 or 12
+        year_value = today.year - 1 if today.month == 1 else today.year
+        return _month_bounds(year_value, last_month)
+    if date_range == "last_year":
+        return date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
+    if date_range == "this_quarter":
+        quarter_key = f"q{((today.month - 1) // 3) + 1}"
+        return _quarter_bounds(today.year, quarter_key)
+    return date(today.year, 1, 1), date(today.year, 12, 31)
+
+
+def _iter_months(start_date, end_date):
+    current = date(start_date.year, start_date.month, 1)
+    end_marker = date(end_date.year, end_date.month, 1)
+    while current <= end_marker:
+        yield current
+        year = current.year + (current.month // 12)
+        month = 1 if current.month == 12 else current.month + 1
+        current = date(year, month, 1)
+
+
+def _iter_quarters(start_date, end_date):
+    quarter = ((start_date.month - 1) // 3) + 1
+    start_month = (quarter - 1) * 3 + 1
+    current = date(start_date.year, start_month, 1)
+    while current <= end_date:
+        yield current
+        year = current.year + (1 if current.month >= 10 else 0)
+        month = 1 if current.month >= 10 else current.month + 3
+        current = date(year, month, 1)
+
+
+def _iter_years(start_date, end_date):
+    current = date(start_date.year, 1, 1)
+    while current <= end_date:
+        yield current
+        current = date(current.year + 1, 1, 1)
+
+
+def _iter_weeks(start_date, end_date):
+    current = start_date - timedelta(days=start_date.weekday())
+    while current <= end_date:
+        yield current
+        current = current + timedelta(days=7)
+
+
+def _iter_days(start_date, end_date):
+    current = start_date
+    while current <= end_date:
+        yield current
+        current = current + timedelta(days=1)
+
+
+def _build_time_columns(display_by, start_date, end_date):
+    if display_by == "days":
+        period_iter = list(_iter_days(start_date, end_date))
+        fmt = "%b %-d, %Y"
+    elif display_by == "weeks":
+        period_iter = list(_iter_weeks(start_date, end_date))
+        fmt = "Wk of %b %-d"
+    elif display_by == "quarters":
+        period_iter = list(_iter_quarters(start_date, end_date))
+        fmt = "Q%q %Y"
+    elif display_by == "years":
+        period_iter = list(_iter_years(start_date, end_date))
+        fmt = "%Y"
+    else:
+        period_iter = list(_iter_months(start_date, end_date))
+        fmt = "%b %Y"
+
+    columns = []
+    for period_start in period_iter:
+        if display_by == "quarters":
+            quarter = ((period_start.month - 1) // 3) + 1
+            label = f"Q{quarter} {period_start.year}"
+            start = date(period_start.year, (quarter - 1) * 3 + 1, 1)
+            end = _quarter_bounds(period_start.year, f"q{quarter}")[1]
+        elif display_by == "years":
+            label = period_start.strftime(fmt)
+            start = date(period_start.year, 1, 1)
+            end = date(period_start.year, 12, 31)
+        elif display_by == "weeks":
+            label = period_start.strftime(fmt)
+            start = period_start
+            end = period_start + timedelta(days=6)
+        elif display_by == "days":
+            label = period_start.strftime(fmt)
+            start = period_start
+            end = period_start
+        else:
+            label = period_start.strftime(fmt)
+            start = period_start
+            end = _month_bounds(period_start.year, period_start.month)[1]
+        columns.append({"key": period_start, "label": label, "start": start, "end": end})
+    return columns
+
+
+def _build_dimension_columns(values):
+    labels = sorted({value or "Unassigned" for value in values})
+    return [{"key": label, "label": label} for label in labels]
+
+
 def category_report(request, pk):
     category = get_object_or_404(Category, pk=pk)
     if category.kind == "transfer":
@@ -196,8 +322,7 @@ def category_report(request, pk):
     )
 
 
-def profit_loss_report(request):
-    # Get filter values (always from URL, regardless of apply flag)
+def _profit_loss_context(request):
     date_range = (request.GET.get("date_range") or "this_year").strip()
     date_from = (request.GET.get("date_from") or "").strip()
     date_to = (request.GET.get("date_to") or "").strip()
@@ -205,64 +330,233 @@ def profit_loss_report(request):
     vendor_id = (request.GET.get("vendor_id") or "").strip()
     category_id = (request.GET.get("category_id") or "").strip()
     kind = (request.GET.get("kind") or "all").strip()
-    
-    # Only apply filters if apply=1 in URL
-    apply_filters = (request.GET.get("apply") or "").strip() == "1"
-    if not apply_filters:
-        account_id = ""
-        vendor_id = ""
-        category_id = ""
-        kind = "all"
+    display_by = (request.GET.get("display_by") or "months").strip()
+
+    if display_by not in DISPLAY_BY_KEYS:
+        display_by = "months"
 
     date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
     pnl_kinds = ["income", "expense", "cogs"]
     if kind not in pnl_kinds:
         kind = "all"
 
-    qs = (
-        Transaction.objects.select_related("category", "account", "vendor")
-        .filter(category__isnull=False, kind__in=pnl_kinds)
-        .order_by("category__name")
+    account_id = account_id if account_id.isdigit() else ""
+    vendor_id = vendor_id if vendor_id.isdigit() else ""
+    category_id = category_id if category_id.isdigit() else ""
+
+    if not start_date or not end_date:
+        start_date, end_date = _default_date_bounds(date_range)
+
+    columns = []
+    if display_by in {"days", "weeks", "months", "quarters", "years"}:
+        columns = _build_time_columns(display_by, start_date, end_date)
+
+    def build_rows(data_rows, column_list):
+        rows = []
+        for category_id_key, entry in data_rows.items():
+            cells = []
+            row_total = Decimal("0.00")
+            for column in column_list:
+                key = column["key"]
+                value = entry["values"].get(key, Decimal("0.00"))
+                cells.append({"value": value, "column": column})
+                row_total += value
+            rows.append(
+                {"name": entry["name"], "cells": cells, "total": row_total, "category_id": category_id_key}
+            )
+        rows.sort(key=lambda r: r["name"])
+        return rows
+
+    income_rows = []
+    cogs_rows = []
+    expense_rows = []
+
+    income_total = Decimal("0.00")
+    cogs_total = Decimal("0.00")
+    expense_total = Decimal("0.00")
+    income_dim_values = []
+    expense_dim_values = []
+    income_data_rows = {}
+    expense_data_rows = {"cogs": {}, "expense": {}}
+    income_column_totals = []
+    cogs_column_totals = []
+    expense_column_totals = []
+    gross_profit_column_totals = []
+    net_operating_income_column_totals = []
+    net_income_column_totals = []
+
+    if kind in {"all", "income"}:
+        invoice_items = InvoiceItem.objects.select_related(
+            "category", "invoice", "invoice__account", "invoice__customer"
+        ).filter(category__kind="income")
+        if account_id:
+            invoice_items = invoice_items.filter(invoice__account_id=int(account_id))
+        if vendor_id:
+            invoice_items = invoice_items.filter(invoice__customer_id=int(vendor_id))
+        if category_id:
+            invoice_items = invoice_items.filter(category_id=int(category_id))
+        if start_date:
+            invoice_items = invoice_items.filter(invoice__date__gte=start_date)
+        if end_date:
+            invoice_items = invoice_items.filter(invoice__date__lte=end_date)
+
+        if display_by in {"days", "weeks", "months", "quarters", "years"}:
+            trunc_map = {
+                "days": TruncDay("invoice__date"),
+                "weeks": TruncWeek("invoice__date"),
+                "months": TruncMonth("invoice__date"),
+                "quarters": TruncQuarter("invoice__date"),
+                "years": TruncYear("invoice__date"),
+            }
+            grouped = (
+                invoice_items.annotate(period=trunc_map[display_by])
+                .values("category_id", "category__name", "period")
+                .annotate(total=Sum("amount"))
+            )
+            data_rows = {}
+            for row in grouped:
+                category_id_key = row["category_id"]
+                period_key = row["period"].date() if hasattr(row["period"], "date") else row["period"]
+                if category_id_key not in data_rows:
+                    data_rows[category_id_key] = {"name": row["category__name"], "values": {}}
+                data_rows[category_id_key]["values"][period_key] = row["total"] or Decimal("0.00")
+            income_rows = build_rows(data_rows, columns)
+        else:
+            dimension_field = "category__name" if display_by == "product" else "invoice__customer__name"
+            grouped = (
+                invoice_items.values("category_id", "category__name", dimension_field)
+                .annotate(total=Sum("amount"))
+            )
+            dim_values = []
+            data_rows = {}
+            for row in grouped:
+                dim_value = row.get(dimension_field) or "Unassigned"
+                dim_values.append(dim_value)
+                category_id_key = row["category_id"]
+                if category_id_key not in data_rows:
+                    data_rows[category_id_key] = {"name": row["category__name"], "values": {}}
+                data_rows[category_id_key]["values"][dim_value] = row["total"] or Decimal("0.00")
+            income_data_rows = data_rows
+            income_dim_values = dim_values
+
+        income_total = sum((row["total"] for row in income_rows), Decimal("0.00"))
+
+    if kind in {"all", "cogs", "expense"}:
+        txn_kinds = ["cogs", "expense"] if kind == "all" else [kind]
+        txn_qs = (
+            Transaction.objects.select_related("category", "account", "vendor")
+            .filter(category__isnull=False, kind__in=txn_kinds)
+            .exclude(invoice_payments__isnull=False)
+        )
+        if account_id:
+            txn_qs = txn_qs.filter(account_id=int(account_id))
+        if vendor_id:
+            txn_qs = txn_qs.filter(vendor_id=int(vendor_id))
+        if category_id:
+            txn_qs = txn_qs.filter(category_id=int(category_id))
+        if start_date:
+            txn_qs = txn_qs.filter(date__gte=start_date)
+        if end_date:
+            txn_qs = txn_qs.filter(date__lte=end_date)
+
+        if display_by in {"days", "weeks", "months", "quarters", "years"}:
+            trunc_map = {
+                "days": TruncDay("date"),
+                "weeks": TruncWeek("date"),
+                "months": TruncMonth("date"),
+                "quarters": TruncQuarter("date"),
+                "years": TruncYear("date"),
+            }
+            grouped = (
+                txn_qs.annotate(period=trunc_map[display_by])
+                .values("category_id", "category__name", "category__kind", "period")
+                .annotate(total=Sum("amount"))
+            )
+            data_rows = {"cogs": {}, "expense": {}}
+            for row in grouped:
+                kind_key = row["category__kind"]
+                category_id_key = row["category_id"]
+                period_key = row["period"].date() if hasattr(row["period"], "date") else row["period"]
+                if category_id_key not in data_rows[kind_key]:
+                    data_rows[kind_key][category_id_key] = {
+                        "name": row["category__name"],
+                        "values": {},
+                    }
+                data_rows[kind_key][category_id_key]["values"][period_key] = abs(
+                    row["total"] or Decimal("0.00")
+                )
+            cogs_rows = build_rows(data_rows["cogs"], columns)
+            expense_rows = build_rows(data_rows["expense"], columns)
+        else:
+            dimension_field = "category__name" if display_by == "product" else "vendor__name"
+            grouped = (
+                txn_qs.values("category_id", "category__name", "category__kind", dimension_field)
+                .annotate(total=Sum("amount"))
+            )
+            dim_values = []
+            data_rows = {"cogs": {}, "expense": {}}
+            for row in grouped:
+                dim_value = row.get(dimension_field) or "Unassigned"
+                dim_values.append(dim_value)
+                kind_key = row["category__kind"]
+                category_id_key = row["category_id"]
+                if category_id_key not in data_rows[kind_key]:
+                    data_rows[kind_key][category_id_key] = {
+                        "name": row["category__name"],
+                        "values": {},
+                    }
+                data_rows[kind_key][category_id_key]["values"][dim_value] = abs(
+                    row["total"] or Decimal("0.00")
+                )
+            expense_data_rows = data_rows
+            expense_dim_values = dim_values
+
+    if display_by in {"customer", "vendor", "product"}:
+        columns = _build_dimension_columns(income_dim_values + expense_dim_values)
+        income_rows = build_rows(income_data_rows, columns) if income_data_rows else []
+        cogs_rows = build_rows(expense_data_rows["cogs"], columns) if expense_data_rows else []
+        expense_rows = (
+            build_rows(expense_data_rows["expense"], columns) if expense_data_rows else []
+        )
+
+    is_single_period = (
+        display_by in {"days", "weeks", "months", "quarters", "years"} and len(columns) == 1
     )
 
-    if account_id.isdigit():
-        qs = qs.filter(account_id=int(account_id))
-    else:
-        account_id = ""
-    if vendor_id.isdigit():
-        qs = qs.filter(vendor_id=int(vendor_id))
-    else:
-        vendor_id = ""
-    if category_id.isdigit():
-        qs = qs.filter(category_id=int(category_id))
-    else:
-        category_id = ""
-    if kind != "all":
-        qs = qs.filter(kind=kind)
-    if start_date:
-        qs = qs.filter(date__gte=start_date)
-    if end_date:
-        qs = qs.filter(date__lte=end_date)
+    def build_column_totals(rows, column_count):
+        totals = [Decimal("0.00") for _ in range(column_count)]
+        for row in rows:
+            for idx, cell in enumerate(row.get("cells", [])):
+                totals[idx] += cell["value"]
+        return totals
 
-    grouped = (
-        qs.values("category_id", "category__name", "category__kind")
-        .annotate(total=Sum("amount"))
-        .order_by("category__name")
-    )
-    for row in grouped:
-        row["display_total"] = abs(row["total"] or Decimal("0.00"))
+    if columns:
+        income_column_totals = build_column_totals(income_rows, len(columns))
+        cogs_column_totals = build_column_totals(cogs_rows, len(columns))
+        expense_column_totals = build_column_totals(expense_rows, len(columns))
+        gross_profit_column_totals = [
+            income_column_totals[idx] - cogs_column_totals[idx]
+            for idx in range(len(columns))
+        ]
+        net_operating_income_column_totals = [
+            gross_profit_column_totals[idx] - expense_column_totals[idx]
+            for idx in range(len(columns))
+        ]
+        net_income_column_totals = list(net_operating_income_column_totals)
 
-    income_rows = [row for row in grouped if row["category__kind"] == "income"]
-    cogs_rows = [row for row in grouped if row["category__kind"] == "cogs"]
-    expense_rows = [row for row in grouped if row["category__kind"] == "expense"]
-
-    income_total = sum((row["total"] for row in income_rows), Decimal("0.00"))
     cogs_total = sum((row["total"] for row in cogs_rows), Decimal("0.00"))
     expense_total = sum((row["total"] for row in expense_rows), Decimal("0.00"))
+
     income_total_display = income_total
     cogs_total_display = abs(cogs_total)
     expense_total_display = abs(expense_total)
-    net_income = income_total + cogs_total + expense_total
+    gross_profit = income_total - cogs_total
+    gross_profit_display = abs(gross_profit)
+    gross_profit_is_negative = gross_profit < 0
+    net_operating_income = gross_profit - expense_total
+    net_operating_income_display = abs(net_operating_income)
+    net_operating_income_is_negative = net_operating_income < 0
+    net_income = net_operating_income
     net_income_display = abs(net_income)
     net_income_is_negative = net_income < 0
 
@@ -272,7 +566,6 @@ def profit_loss_report(request):
         "kind", "name"
     )
 
-    # Build filters dict for template
     filters = {
         "date_range": date_range,
         "date_from": date_from,
@@ -281,32 +574,49 @@ def profit_loss_report(request):
         "vendor_id": vendor_id,
         "category_id": category_id,
         "kind": kind,
+        "display_by": display_by,
     }
 
-    return render(
-        request,
-        "fincore/reports/profit_loss.html",
-        {
-            "filters": filters,
-            "apply_filters": apply_filters,
-            "report_ranges": REPORT_RANGE_OPTIONS,
-            "accounts": accounts,
-            "vendors": vendors,
-            "categories": categories,
-            "income_rows": income_rows,
-            "cogs_rows": cogs_rows,
-            "expense_rows": expense_rows,
-            "income_total": income_total,
-            "cogs_total": cogs_total,
-            "expense_total": expense_total,
-            "income_total_display": income_total_display,
-            "cogs_total_display": cogs_total_display,
-            "expense_total_display": expense_total_display,
-            "net_income": net_income,
-            "net_income_display": net_income_display,
-            "net_income_is_negative": net_income_is_negative,
-        },
-    )
+    return {
+        "filters": filters,
+        "report_ranges": REPORT_RANGE_OPTIONS,
+        "display_by_options": DISPLAY_BY_OPTIONS,
+        "accounts": accounts,
+        "vendors": vendors,
+        "categories": categories,
+        "income_rows": income_rows,
+        "cogs_rows": cogs_rows,
+        "expense_rows": expense_rows,
+        "income_total": income_total,
+        "cogs_total": cogs_total,
+        "expense_total": expense_total,
+        "income_total_display": income_total_display,
+        "cogs_total_display": cogs_total_display,
+        "expense_total_display": expense_total_display,
+        "income_column_totals": income_column_totals,
+        "cogs_column_totals": cogs_column_totals,
+        "expense_column_totals": expense_column_totals,
+        "gross_profit_column_totals": gross_profit_column_totals,
+        "net_operating_income_column_totals": net_operating_income_column_totals,
+        "net_income_column_totals": net_income_column_totals,
+        "gross_profit": gross_profit,
+        "gross_profit_display": gross_profit_display,
+        "gross_profit_is_negative": gross_profit_is_negative,
+        "net_operating_income": net_operating_income,
+        "net_operating_income_display": net_operating_income_display,
+        "net_operating_income_is_negative": net_operating_income_is_negative,
+        "net_income": net_income,
+        "net_income_display": net_income_display,
+        "net_income_is_negative": net_income_is_negative,
+        "columns": columns,
+        "display_by": display_by,
+        "is_single_period": is_single_period,
+    }
+
+
+def profit_loss_report(request):
+    context = _profit_loss_context(request)
+    return render(request, "fincore/reports/profit_loss.html", context)
 
 
 def profit_loss_content(request):
@@ -314,115 +624,14 @@ def profit_loss_content(request):
     HTMX endpoint that returns just the P&L table content (for filter updates).
     Reuses the same logic as profit_loss_report but renders a partial template.
     """
-    # Get filter values (always from URL)
-    date_range = (request.GET.get("date_range") or "this_year").strip()
-    date_from = (request.GET.get("date_from") or "").strip()
-    date_to = (request.GET.get("date_to") or "").strip()
-    account_id = (request.GET.get("account_id") or "").strip()
-    vendor_id = (request.GET.get("vendor_id") or "").strip()
-    category_id = (request.GET.get("category_id") or "").strip()
-    kind = (request.GET.get("kind") or "all").strip()
-    
-    # Only apply filters if apply=1 in URL
-    apply_filters = (request.GET.get("apply") or "").strip() == "1"
-    if not apply_filters:
-        account_id = ""
-        vendor_id = ""
-        category_id = ""
-        kind = "all"
-
-    date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
-    pnl_kinds = ["income", "expense", "cogs"]
-    if kind not in pnl_kinds:
-        kind = "all"
-
-    qs = (
-        Transaction.objects.select_related("category", "account", "vendor")
-        .filter(category__isnull=False, kind__in=pnl_kinds)
-        .order_by("category__name")
-    )
-
-    if account_id.isdigit():
-        qs = qs.filter(account_id=int(account_id))
-    else:
-        account_id = ""
-    if vendor_id.isdigit():
-        qs = qs.filter(vendor_id=int(vendor_id))
-    else:
-        vendor_id = ""
-    if category_id.isdigit():
-        qs = qs.filter(category_id=int(category_id))
-    else:
-        category_id = ""
-    if kind != "all":
-        qs = qs.filter(kind=kind)
-    if start_date:
-        qs = qs.filter(date__gte=start_date)
-    if end_date:
-        qs = qs.filter(date__lte=end_date)
-
-    grouped = (
-        qs.values("category_id", "category__name", "category__kind")
-        .annotate(total=Sum("amount"))
-        .order_by("category__name")
-    )
-    for row in grouped:
-        row["display_total"] = abs(row["total"] or Decimal("0.00"))
-
-    income_rows = [row for row in grouped if row["category__kind"] == "income"]
-    cogs_rows = [row for row in grouped if row["category__kind"] == "cogs"]
-    expense_rows = [row for row in grouped if row["category__kind"] == "expense"]
-
-    income_total = sum((row["total"] for row in income_rows), Decimal("0.00"))
-    cogs_total = sum((row["total"] for row in cogs_rows), Decimal("0.00"))
-    expense_total = sum((row["total"] for row in expense_rows), Decimal("0.00"))
-    income_total_display = income_total
-    cogs_total_display = abs(cogs_total)
-    expense_total_display = abs(expense_total)
-    net_income = income_total + cogs_total + expense_total
-    net_income_display = abs(net_income)
-    net_income_is_negative = net_income < 0
-
-    accounts = Account.objects.filter(is_active=True).order_by("name")
-    vendors = Vendor.objects.filter(is_active=True).order_by("name")
-    categories = Category.objects.filter(is_active=True, kind__in=pnl_kinds).order_by(
-        "kind", "name"
-    )
-
-    # Build filters dict for template
-    filters = {
-        "date_range": date_range,
-        "date_from": date_from,
-        "date_to": date_to,
-        "account_id": account_id,
-        "vendor_id": vendor_id,
-        "category_id": category_id,
-        "kind": kind,
-    }
-
-    return render(
-        request,
-        "fincore/reports/profit_loss_content.html",
-        {
-            "filters": filters,
-            "report_ranges": REPORT_RANGE_OPTIONS,
-            "accounts": accounts,
-            "vendors": vendors,
-            "categories": categories,
-            "income_rows": income_rows,
-            "cogs_rows": cogs_rows,
-            "expense_rows": expense_rows,
-            "income_total": income_total,
-            "cogs_total": cogs_total,
-            "expense_total": expense_total,
-            "income_total_display": income_total_display,
-            "cogs_total_display": cogs_total_display,
-            "expense_total_display": expense_total_display,
-            "net_income": net_income,
-            "net_income_display": net_income_display,
-            "net_income_is_negative": net_income_is_negative,
-        },
-    )
+    if not getattr(request, "htmx", False):
+        query = request.META.get("QUERY_STRING", "")
+        target = reverse("fincore:profit_loss_report")
+        if query:
+            target = f"{target}?{query}"
+        return redirect(target)
+    context = _profit_loss_context(request)
+    return render(request, "fincore/reports/profit_loss_content.html", context)
 
 
 def transaction_list(request):
@@ -490,7 +699,9 @@ def transaction_table(request):
     if selected_account_id not in account_ids:
         selected_account_id = accounts[0]["id"] if accounts else None
 
-    qs = Transaction.objects.select_related("account", "category", "transfer_group", "vendor")
+    qs = Transaction.objects.select_related(
+        "account", "category", "transfer_group", "vendor"
+    ).prefetch_related("invoice_payments__invoice")
     base_qs = Transaction.objects.all()
     search = request.GET.get("q", "").strip()
     date_range = request.GET.get("date_range", "all")

@@ -3,7 +3,7 @@
 {% block title %}Sales Transactions · Fincore{% endblock %}
 
 {% block content %}
-<div class="space-y-4 flex flex-col h-full" x-data="{ matchOpen: false, openMatch(id) { this.matchOpen = true; this.$nextTick(() => { const target = this.$refs.matchList; if (!target) return; target.innerHTML = '<p class=\"text-xs text-slate-500\">Loading matches...</p>'; if (window.htmx) { window.htmx.ajax('GET', `/sales/transactions/matches/?invoice_id=${id}`, { target }); } }); } }">
+<div class="space-y-4 flex flex-col h-full" x-data="salesMatch()">
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-lg font-semibold text-slate-900">Sales Transactions</h1>
@@ -14,64 +14,73 @@
     </div>
   </div>
 
-  <form class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" method="get">
-    <div class="flex flex-wrap items-end gap-4" x-data="{ range: '{{ date_range }}' }">
+  <form class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" method="get" autocomplete="off"
+    x-data="{ 
+      range: '{{ date_range }}',
+      init() {
+        // Reset selects to server-rendered values (override browser autocomplete)
+        this.$el.querySelectorAll('select').forEach(s => {
+          const serverSelected = s.querySelector('option[data-server-selected]');
+          if (serverSelected) s.value = serverSelected.value;
+        });
+      }
+    }">
+    <div class="flex flex-wrap items-end gap-4">
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Report period</span>
-        <select name="date_range" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="range">
+        <select name="date_range" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="range" onchange="this.form.submit()">
           {% for value, label in report_ranges %}
-            <option value="{{ value }}" {% if date_range == value %}selected{% endif %}>{{ label }}</option>
+            <option value="{{ value }}" {% if date_range == value %}selected data-server-selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
         <span>From</span>
-        <input type="date" name="date_from" value="{{ date_from }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        <input type="date" name="date_from" value="{{ date_from }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
         <span>To</span>
-        <input type="date" name="date_to" value="{{ date_to }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        <input type="date" name="date_to" value="{{ date_to }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Account</span>
-        <select name="account_id" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
-          <option value="">All accounts</option>
+        <select name="account_id" autocomplete="off" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+          <option value="" {% if not account_id %}selected data-server-selected{% endif %}>All accounts</option>
           {% for account in accounts %}
-            <option value="{{ account.id }}" {% if account_id|add:'' == account.id|add:'' %}selected{% endif %}>{{ account.name }}</option>
+            <option value="{{ account.id }}" {% if account_id == account.id %}selected data-server-selected{% endif %}>{{ account.name }}</option>
           {% endfor %}
         </select>
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Customer</span>
-        <select name="customer_id" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
-          <option value="">All customers</option>
+        <select name="customer_id" autocomplete="off" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+          <option value="" {% if not customer_id %}selected data-server-selected{% endif %}>All customers</option>
           {% for customer in customers %}
-            <option value="{{ customer.id }}" {% if customer_id|add:'' == customer.id|add:'' %}selected{% endif %}>{{ customer.name }}</option>
+            <option value="{{ customer.id }}" {% if customer_id == customer.id %}selected data-server-selected{% endif %}>{{ customer.name }}</option>
           {% endfor %}
         </select>
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Status</span>
-        <select name="status" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
-          <option value="">All</option>
+        <select name="status" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+          <option value="" {% if not status %}selected data-server-selected{% endif %}>All</option>
           {% for option in status_options %}
-            <option value="{{ option }}" {% if status == option %}selected{% endif %}>{{ option|capfirst }}</option>
+            <option value="{{ option }}" {% if status == option %}selected data-server-selected{% endif %}>{{ option|capfirst }}</option>
           {% endfor %}
         </select>
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Min total</span>
-        <input type="number" step="0.01" name="min_total" value="{{ min_total }}" class="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        <input type="number" step="0.01" name="min_total" value="{{ min_total }}" class="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Max total</span>
-        <input type="number" step="0.01" name="max_total" value="{{ max_total }}" class="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        <input type="number" step="0.01" name="max_total" value="{{ max_total }}" class="w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
       </label>
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Search</span>
-        <input type="text" name="q" value="{{ search }}" placeholder="Invoice #" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+        <input type="text" name="q" value="{{ search }}" placeholder="Invoice #" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
       </label>
-      <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Apply</button>
     </div>
   </form>
 
@@ -85,7 +94,6 @@
             <th class="py-2 px-4 text-left">Customer</th>
             <th class="py-2 px-4 text-right">Total</th>
             <th class="py-2 px-4 text-left">Status</th>
-            <th class="py-2 px-4 text-left">Due Date</th>
             <th class="py-2 px-4 text-left">Account</th>
             <th class="py-2 px-4 text-right">Actions</th>
           </tr>
@@ -93,13 +101,12 @@
         <tbody class="divide-y divide-slate-200">
           {% if page_obj.object_list %}
             {% for invoice in page_obj.object_list %}
-              <tr class="hover:bg-slate-50">
+              <tr class="hover:bg-slate-50 cursor-pointer" @dblclick="window.location='{% url 'fincore:sales_invoice_edit' invoice.id %}'">
                 <td class="px-4 py-2 text-xs font-semibold text-slate-700">{{ invoice.number }}</td>
                 <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.date|date:"M j, Y" }}</td>
                 <td class="px-4 py-2 text-xs text-slate-700">{{ invoice.customer.name }}</td>
                 <td class="px-4 py-2 text-right text-xs text-slate-900">{{ invoice.total|floatformat:2|intcomma }}</td>
                 <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.status|capfirst }}</td>
-                <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.due_date|date:"M j, Y"|default:"-" }}</td>
                 <td class="px-4 py-2 text-xs text-slate-700">{{ invoice.account.name }}</td>
                 <td class="px-4 py-2 text-right text-xs">
                   <button type="button" class="text-indigo-600 hover:text-indigo-700" @click="openMatch({{ invoice.id }})">Match</button>
@@ -108,7 +115,7 @@
             {% endfor %}
           {% else %}
             <tr>
-              <td colspan="8" class="px-4 py-6 text-center text-sm text-slate-500">No invoices found.</td>
+              <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-500">No invoices found.</td>
             </tr>
           {% endif %}
         </tbody>
@@ -144,4 +151,30 @@
     </div>
   </div>
 </div>
+<script>
+  function salesMatch() {
+    return {
+      matchOpen: false,
+      openMatch(id) {
+        this.matchOpen = true;
+        this.$nextTick(() => {
+          const target = this.$refs.matchList;
+          if (!target) return;
+          target.innerHTML = "";
+          const loading = document.createElement("p");
+          loading.className = "text-xs text-slate-500";
+          loading.textContent = "Loading matches...";
+          target.appendChild(loading);
+          if (window.htmx) {
+            window.htmx.ajax(
+              "GET",
+              `/sales/transactions/matches/?invoice_id=${id}`,
+              { target }
+            );
+          }
+        });
+      },
+    };
+  }
+</script>
 {% endblock %}

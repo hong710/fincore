@@ -30,6 +30,10 @@ from .views.vendor_views import (
 from .views.sales_views import (
     sales_transactions_list,
     sales_invoice_create,
+    sales_invoice_edit,
+    sales_invoice_detail,
+    sales_invoice_match_apply,
+    sales_invoice_payment_delete,
     sales_invoice_matches,
 )
 from .views.import_views import (
@@ -65,7 +69,11 @@ urlpatterns = [
     path("reports/profit-loss/content/", profit_loss_content, name="profit_loss_content"),
     path("sales/transactions/", sales_transactions_list, name="sales_transactions_list"),
     path("sales/transactions/new/", sales_invoice_create, name="sales_invoice_create"),
+    path("sales/transactions/<int:invoice_id>/edit/", sales_invoice_edit, name="sales_invoice_edit"),
+    path("sales/transactions/<int:invoice_id>/", sales_invoice_detail, name="sales_invoice_detail"),
     path("sales/transactions/matches/", sales_invoice_matches, name="sales_invoice_matches"),
+    path("sales/transactions/match/", sales_invoice_match_apply, name="sales_invoice_match_apply"),
+    path("sales/transactions/payment/<int:payment_id>/delete/", sales_invoice_payment_delete, name="sales_invoice_payment_delete"),
     path("categories/", category_list, name="category_list"),
     path("categories/table/", category_table, name="category_table"),
     path("categories/create/", category_create, name="category_create"),

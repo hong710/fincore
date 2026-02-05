@@ -66,3 +66,17 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.date} {self.kind} {self.amount} {self.account}"
+
+    def invoice_display_label(self):
+        payments = list(self.invoice_payments.all())
+        if not payments:
+            return None
+        if len(payments) == 1:
+            return f"Invoice: {payments[0].invoice.number}"
+        return "Invoice Payment (Multiple)"
+
+    def invoice_display_link(self):
+        payments = list(self.invoice_payments.all())
+        if len(payments) == 1:
+            return payments[0].invoice_id
+        return None
