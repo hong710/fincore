@@ -487,6 +487,7 @@ def _profit_loss_context(request):
     net_income_column_totals = []
 
     if kind in {"all", "income"}:
+        # ── Invoice-based income (from InvoiceItems) ──
         invoice_items = InvoiceItem.objects.select_related(
             "category", "invoice", "invoice__account", "invoice__customer"
         ).filter(category__kind="income")
@@ -501,42 +502,99 @@ def _profit_loss_context(request):
         if end_date:
             invoice_items = invoice_items.filter(invoice__date__lte=end_date)
 
+        # ── Transaction-based income (imports, manual) ──
+        income_txn_qs = (
+            Transaction.objects.select_related("category", "account", "vendor")
+            .filter(category__isnull=False, kind="income")
+            .exclude(invoice_payments__isnull=False)
+        )
+        if account_id:
+            income_txn_qs = income_txn_qs.filter(account_id=int(account_id))
+        if vendor_id:
+            income_txn_qs = income_txn_qs.filter(vendor_id=int(vendor_id))
+        if category_id:
+            income_txn_qs = income_txn_qs.filter(category_id=int(category_id))
+        if start_date:
+            income_txn_qs = income_txn_qs.filter(date__gte=start_date)
+        if end_date:
+            income_txn_qs = income_txn_qs.filter(date__lte=end_date)
+
         if display_by in {"days", "weeks", "months", "quarters", "years"}:
-            trunc_map = {
+            trunc_map_inv = {
                 "days": TruncDay("invoice__date"),
                 "weeks": TruncWeek("invoice__date"),
                 "months": TruncMonth("invoice__date"),
                 "quarters": TruncQuarter("invoice__date"),
                 "years": TruncYear("invoice__date"),
             }
-            grouped = (
-                invoice_items.annotate(period=trunc_map[display_by])
+            trunc_map_txn = {
+                "days": TruncDay("date"),
+                "weeks": TruncWeek("date"),
+                "months": TruncMonth("date"),
+                "quarters": TruncQuarter("date"),
+                "years": TruncYear("date"),
+            }
+
+            # Invoice items
+            inv_grouped = (
+                invoice_items.annotate(period=trunc_map_inv[display_by])
                 .values("category_id", "category__name", "period")
                 .annotate(total=Sum("amount"))
             )
             data_rows = {}
-            for row in grouped:
+            for row in inv_grouped:
                 category_id_key = row["category_id"]
                 period_key = row["period"].date() if hasattr(row["period"], "date") else row["period"]
                 if category_id_key not in data_rows:
                     data_rows[category_id_key] = {"name": row["category__name"], "values": {}}
                 data_rows[category_id_key]["values"][period_key] = row["total"] or Decimal("0.00")
+
+            # Income transactions
+            txn_grouped = (
+                income_txn_qs.annotate(period=trunc_map_txn[display_by])
+                .values("category_id", "category__name", "period")
+                .annotate(total=Sum("amount"))
+            )
+            for row in txn_grouped:
+                category_id_key = row["category_id"]
+                period_key = row["period"].date() if hasattr(row["period"], "date") else row["period"]
+                if category_id_key not in data_rows:
+                    data_rows[category_id_key] = {"name": row["category__name"], "values": {}}
+                existing = data_rows[category_id_key]["values"].get(period_key, Decimal("0.00"))
+                data_rows[category_id_key]["values"][period_key] = existing + (row["total"] or Decimal("0.00"))
+
             income_rows = build_rows(data_rows, columns)
         else:
-            dimension_field = "category__name" if display_by == "product" else "invoice__customer__name"
-            grouped = (
-                invoice_items.values("category_id", "category__name", dimension_field)
+            dimension_field_inv = "category__name" if display_by == "product" else "invoice__customer__name"
+            dimension_field_txn = "category__name" if display_by == "product" else "vendor__name"
+
+            inv_grouped = (
+                invoice_items.values("category_id", "category__name", dimension_field_inv)
                 .annotate(total=Sum("amount"))
             )
             dim_values = []
             data_rows = {}
-            for row in grouped:
-                dim_value = row.get(dimension_field) or "Unassigned"
+            for row in inv_grouped:
+                dim_value = row.get(dimension_field_inv) or "Unassigned"
                 dim_values.append(dim_value)
                 category_id_key = row["category_id"]
                 if category_id_key not in data_rows:
                     data_rows[category_id_key] = {"name": row["category__name"], "values": {}}
                 data_rows[category_id_key]["values"][dim_value] = row["total"] or Decimal("0.00")
+
+            txn_grouped = (
+                income_txn_qs.values("category_id", "category__name", dimension_field_txn)
+                .annotate(total=Sum("amount"))
+            )
+            for row in txn_grouped:
+                dim_value = row.get(dimension_field_txn) or "Unassigned"
+                dim_values.append(dim_value)
+                category_id_key = row["category_id"]
+                if category_id_key not in data_rows:
+                    data_rows[category_id_key] = {"name": row["category__name"], "values": {}}
+                existing = data_rows[category_id_key]["values"].get(dim_value, Decimal("0.00"))
+                data_rows[category_id_key]["values"][dim_value] = existing + (row["total"] or Decimal("0.00"))
+
             income_data_rows = data_rows
             income_dim_values = dim_values
 
@@ -623,6 +681,34 @@ def _profit_loss_context(request):
     is_single_period = (
         display_by in {"days", "weeks", "months", "quarters", "years"} and len(columns) == 1
     )
+
+    # Always show Uncategorized Income / Expense rows in P&L
+    uncat_income_cat = Category.objects.filter(
+        name="Uncategorized Income", kind="income", is_protected=True
+    ).first()
+    uncat_expense_cat = Category.objects.filter(
+        name="Uncategorized Expense", kind="expense", is_protected=True
+    ).first()
+
+    def _ensure_uncat_row(rows, category):
+        if not category:
+            return rows
+        if any(r["category_id"] == category.id for r in rows):
+            return rows
+        zero_cells = [{"value": Decimal("0.00"), "column": col} for col in columns]
+        rows.append({
+            "name": category.name,
+            "cells": zero_cells,
+            "total": Decimal("0.00"),
+            "category_id": category.id,
+        })
+        rows.sort(key=lambda r: r["name"])
+        return rows
+
+    if kind in {"all", "income"} and uncat_income_cat:
+        income_rows = _ensure_uncat_row(income_rows, uncat_income_cat)
+    if kind in {"all", "expense"} and uncat_expense_cat:
+        expense_rows = _ensure_uncat_row(expense_rows, uncat_expense_cat)
 
     def build_column_totals(rows, column_count):
         totals = [Decimal("0.00") for _ in range(column_count)]
@@ -1392,6 +1478,91 @@ def transaction_delete(request, pk):
     resp = HttpResponse(status=204)
     resp["HX-Trigger"] = '{"transactions:editClose": true}'
     return resp
+
+
+def transaction_create(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest("Invalid method")
+
+    errors = []
+    raw_date = (request.POST.get("date") or "").strip()
+    raw_amount = (request.POST.get("amount") or "").strip()
+    account_id = (request.POST.get("account_id") or "").strip()
+    category_id = (request.POST.get("category_id") or "").strip()
+    vendor_id = (request.POST.get("vendor_id") or "").strip()
+    description = (request.POST.get("description") or "").strip()
+
+    if not raw_date:
+        errors.append("Date is required.")
+    if not raw_amount:
+        errors.append("Amount is required.")
+    if not account_id.isdigit():
+        errors.append("Account is required.")
+    if not category_id.isdigit():
+        errors.append("Category is required.")
+
+    account = None
+    category = None
+    vendor = None
+    parsed_date = None
+    amount = None
+
+    if account_id.isdigit():
+        try:
+            account = Account.objects.get(pk=int(account_id), is_active=True)
+        except Account.DoesNotExist:
+            errors.append("Invalid account selected.")
+
+    if category_id.isdigit():
+        try:
+            category = Category.objects.get(pk=int(category_id))
+        except Category.DoesNotExist:
+            errors.append("Invalid category selected.")
+
+    if vendor_id:
+        try:
+            vendor = Vendor.objects.get(pk=int(vendor_id), is_active=True)
+        except (Vendor.DoesNotExist, ValueError, TypeError):
+            errors.append("Invalid vendor selected.")
+
+    if raw_date:
+        try:
+            parsed_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+        except ValueError:
+            errors.append("Invalid date.")
+
+    if raw_amount:
+        try:
+            amount = Decimal(str(raw_amount))
+        except (InvalidOperation, ValueError, TypeError):
+            errors.append("Invalid amount.")
+
+    if errors:
+        return render(
+            request,
+            "fincore/accounts/form_errors.html",
+            {"form_errors": errors},
+            status=200,
+        )
+
+    txn = Transaction(
+        date=parsed_date,
+        account=account,
+        amount=amount,
+        description=description,
+        vendor=vendor,
+        category=category,
+        kind=category.kind,
+        source="manual",
+        is_imported=False,
+    )
+    txn.save()
+
+    if getattr(request, "htmx", False):
+        resp = HttpResponse(status=204)
+        resp["HX-Trigger"] = '{"transactions:refresh": true, "transactions:newClose": true}'
+        return resp
+    return redirect("fincore:transaction_list")
 
 
 def transaction_update(request):

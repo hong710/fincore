@@ -22,8 +22,11 @@ class Invoice(models.Model):
     due_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    tax_exclude = models.BooleanField(default=False)
     tax_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    is_locked = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

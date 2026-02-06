@@ -11,7 +11,7 @@ from django.db import transaction as db_transaction
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from fincore.models import Account, ImportBatch, ImportRow, Transaction
+from fincore.models import Account, Category, ImportBatch, ImportRow, Transaction
 
 
 ALLOWED_MAP_VALUES = {"ignore", "date", "description", "amount", "indicator", "debit", "credit"}
@@ -489,6 +489,13 @@ def import_commit(request, batch_id):
 
     from fincore.models import Transaction
 
+    uncat_income = Category.objects.filter(
+        name="Uncategorized Income", kind="income", is_protected=True
+    ).first()
+    uncat_expense = Category.objects.filter(
+        name="Uncategorized Expense", kind="expense", is_protected=True
+    ).first()
+
     with db_transaction.atomic():
         Transaction.objects.bulk_create(
             [
@@ -498,7 +505,7 @@ def import_commit(request, batch_id):
                     amount=item["amount"],
                     kind=item["kind"],
                     payee="",
-                    category=None,
+                    category=uncat_expense if item["kind"] == "expense" else uncat_income,
                     transfer_group=None,
                     is_imported=True,
                     import_batch=batch,

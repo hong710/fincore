@@ -57,7 +57,23 @@
           value="{{ tax_rate }}"
           class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
           x-model.number="taxRate"
+          {% if tax_rate_locked %}disabled{% endif %}
         >
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Exclude tax</span>
+        <div class="flex items-center gap-2">
+          <input type="hidden" name="tax_exclude" value="0">
+          <input
+            type="checkbox"
+            name="tax_exclude"
+            value="1"
+            class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            {% if tax_exclude %}checked{% endif %}
+            {% if tax_rate_locked %}disabled{% endif %}
+          >
+          <span class="text-xs text-slate-500">Skip tax for the whole invoice.</span>
+        </div>
       </label>
     </div>
 
@@ -150,6 +166,8 @@
     return {
       rows: rows.length ? rows : [{ category_id: "", description: "", amount: "", tax_exempt: false }],
       taxRate: Number("{{ tax_rate }}") || 7.75,
+      taxExclude: {{ tax_exclude|yesno:"true,false" }},
+      taxRateLocked: {{ tax_rate_locked|yesno:"true,false" }},
       addRow() {
         this.rows.push({ category_id: "", description: "", amount: "", tax_exempt: false });
       },
@@ -162,7 +180,7 @@
         return Number.isFinite(num) ? num : 0;
       },
       rowTax(row) {
-        if (row.tax_exempt) return 0;
+        if (this.taxExclude || row.tax_exempt) return 0;
         const amount = this.parseAmount(row.amount);
         return amount * (this.taxRate / 100);
       },

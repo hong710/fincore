@@ -5,6 +5,7 @@ from .views.transaction_views import (
     profit_loss_content,
     transaction_list,
     transaction_table,
+    transaction_create,
     transaction_bulk_action,
     transaction_delete,
     transaction_update,
@@ -58,6 +59,7 @@ app_name = "fincore"
 urlpatterns = [
     path("transactions/", transaction_list, name="transaction_list"),
     path("transactions/table/", transaction_table, name="transaction_table"),
+    path("transactions/create/", transaction_create, name="transaction_create"),
     path("transactions/bulk-action/", transaction_bulk_action, name="transaction_bulk_action"),
     path("transactions/<int:pk>/delete/", transaction_delete, name="transaction_delete"),
     path("transactions/update/", transaction_update, name="transaction_update"),

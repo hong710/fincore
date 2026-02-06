@@ -123,7 +123,14 @@
                 </td>
                 <td class="px-4 py-2 text-xs text-slate-700">{{ invoice.account.name }}</td>
                 <td class="px-4 py-2 text-right text-xs">
-                  <button type="button" class="text-indigo-600 hover:text-indigo-700" @click="openMatch({{ invoice.id }})">Match</button>
+                  <div class="flex items-center justify-end gap-2">
+                    <a href="{% url 'fincore:sales_invoice_detail' invoice.id %}" class="text-slate-600 hover:text-slate-700">View</a>
+                    {% if invoice.status == 'paid' %}
+                      <button type="button" class="text-slate-400 cursor-not-allowed" disabled>Match</button>
+                    {% else %}
+                      <button type="button" class="text-indigo-600 hover:text-indigo-700" @click="openMatch({{ invoice.id }})">Match</button>
+                    {% endif %}
+                  </div>
                 </td>
               </tr>
             {% endfor %}

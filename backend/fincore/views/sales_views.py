@@ -132,6 +132,7 @@ def sales_invoice_create(request):
     errors = []
     tax_rate_default = Decimal("7.75")
     tax_rate = tax_rate_default
+    tax_exclude = False
     item_count = 1
 
     if request.method == "POST":
@@ -141,6 +142,7 @@ def sales_invoice_create(request):
         due_date_raw = (request.POST.get("due_date") or "").strip()
         notes = (request.POST.get("notes") or "").strip()
         tax_rate_raw = (request.POST.get("tax_rate") or "").strip()
+        tax_exclude = (request.POST.get("tax_exclude") or "").strip() == "1"
         item_count_raw = (request.POST.get("item_count") or "1").strip()
 
         if not customer_id.isdigit():
@@ -210,7 +212,7 @@ def sales_invoice_create(request):
                 errors.append("Line item amount is invalid.")
                 continue
 
-            if tax_exempt:
+            if tax_exclude or tax_exempt:
                 tax_value = Decimal("0.00")
             else:
                 tax_value = (amount * (tax_rate / Decimal("100"))).quantize(
@@ -249,6 +251,8 @@ def sales_invoice_create(request):
                     due_date=due_date,
                     status="draft",
                     subtotal=subtotal,
+                    tax_rate=tax_rate,
+                    tax_exclude=tax_exclude,
                     tax_total=tax_total,
                     total=subtotal + tax_total,
                     notes=notes,
@@ -259,6 +263,7 @@ def sales_invoice_create(request):
                         category_id=item["category_id"],
                         description=item["description"],
                         amount=item["amount"],
+                        tax_exempt=item["tax_exempt"],
                         tax=item["tax"],
                         total=item["total"],
                     )
@@ -274,6 +279,8 @@ def sales_invoice_create(request):
             "item_rows": item_rows,
             "form_errors": errors,
             "tax_rate": tax_rate,
+            "tax_exclude": tax_exclude,
+            "tax_rate_locked": False,
             "item_count": item_count,
         },
     )
@@ -286,7 +293,9 @@ def sales_invoice_edit(request, invoice_id):
     categories = Category.objects.filter(is_active=True, kind="income").order_by("name")
     category_ids = {str(cat.id) for cat in categories}
     tax_rate_default = Decimal("7.75")
-    tax_rate = tax_rate_default
+    tax_rate = invoice.tax_rate if invoice.tax_rate is not None else tax_rate_default
+    tax_exclude = invoice.tax_exclude
+    tax_rate_locked = invoice.status in {"paid", "partially_paid"}
     errors = []
 
     item_rows = [
@@ -296,7 +305,7 @@ def sales_invoice_edit(request, invoice_id):
             "amount": str(item.amount),
             "tax": str(item.tax),
             "total": str(item.total),
-            "tax_exempt": False,
+            "tax_exempt": item.tax_exempt,
         }
         for item in invoice.items.all()
     ]
@@ -320,6 +329,7 @@ def sales_invoice_edit(request, invoice_id):
         invoice_date_raw = (request.POST.get("date") or "").strip()
         notes = (request.POST.get("notes") or "").strip()
         tax_rate_raw = (request.POST.get("tax_rate") or "").strip()
+        tax_exclude = (request.POST.get("tax_exclude") or "").strip() == "1"
         item_count_raw = (request.POST.get("item_count") or str(item_count)).strip()
 
         if not customer_id.isdigit():
@@ -330,14 +340,18 @@ def sales_invoice_edit(request, invoice_id):
         if not invoice_date:
             errors.append("Invoice date is required.")
 
-        try:
-            tax_rate = Decimal(tax_rate_raw)
-        except (InvalidOperation, TypeError):
-            errors.append("Tax rate is invalid.")
-            tax_rate = tax_rate_default
-        if tax_rate < 0:
-            errors.append("Tax rate must be zero or positive.")
-            tax_rate = tax_rate_default
+        if tax_rate_locked:
+            tax_rate = invoice.tax_rate
+            tax_exclude = invoice.tax_exclude
+        else:
+            try:
+                tax_rate = Decimal(tax_rate_raw)
+            except (InvalidOperation, TypeError):
+                errors.append("Tax rate is invalid.")
+                tax_rate = tax_rate_default
+            if tax_rate < 0:
+                errors.append("Tax rate must be zero or positive.")
+                tax_rate = tax_rate_default
 
         try:
             item_count = int(item_count_raw)
@@ -388,7 +402,7 @@ def sales_invoice_edit(request, invoice_id):
                 errors.append("Line item amount is invalid.")
                 continue
 
-            if tax_exempt:
+            if tax_exclude or tax_exempt:
                 tax_value = Decimal("0.00")
             else:
                 tax_value = (amount * (tax_rate / Decimal("100"))).quantize(
@@ -404,6 +418,7 @@ def sales_invoice_edit(request, invoice_id):
                     "category_id": int(category_field),
                     "description": description,
                     "amount": amount,
+                    "tax_exempt": tax_exempt,
                     "tax": tax_value,
                     "total": total,
                 }
@@ -420,6 +435,9 @@ def sales_invoice_edit(request, invoice_id):
                 invoice.account = account
                 invoice.date = invoice_date
                 invoice.subtotal = subtotal
+                if not tax_rate_locked:
+                    invoice.tax_rate = tax_rate
+                    invoice.tax_exclude = tax_exclude
                 invoice.tax_total = tax_total
                 invoice.total = subtotal + tax_total
                 invoice.notes = notes
@@ -431,6 +449,7 @@ def sales_invoice_edit(request, invoice_id):
                         category_id=item["category_id"],
                         description=item["description"],
                         amount=item["amount"],
+                        tax_exempt=item["tax_exempt"],
                         tax=item["tax"],
                         total=item["total"],
                     )
@@ -447,6 +466,8 @@ def sales_invoice_edit(request, invoice_id):
             "item_rows": item_rows,
             "form_errors": errors,
             "tax_rate": tax_rate,
+            "tax_exclude": tax_exclude,
+            "tax_rate_locked": tax_rate_locked,
             "item_count": item_count,
         },
     )
@@ -457,21 +478,35 @@ def _build_invoice_match_context(invoice):
     match_end = invoice.date + timedelta(days=30)
     remaining = invoice.remaining_balance
 
-    qs = (
+    # Base queryset: positive income transactions in same account, not already matched, within date range
+    base_qs = (
         Transaction.objects.select_related("account", "vendor")
         .filter(date__gte=match_start, date__lte=match_end)
         .filter(account=invoice.account)
         .filter(amount__gt=0)
         .exclude(invoice_payments__isnull=False)
-        .order_by("-date", "-id")
     )
+
+    # Best matches: transactions that can cover full remaining balance
+    best_matches = []
     if remaining > 0:
-        qs = qs.filter(amount__gte=remaining)
+        best_matches = list(
+            base_qs.filter(amount__gte=remaining)
+            .order_by("-date", "-id")[:10]
+        )
+
+    # All other available transactions (exclude best matches)
+    best_match_ids = {txn.id for txn in best_matches}
+    other_transactions = list(
+        base_qs.exclude(id__in=best_match_ids)
+        .order_by("-date", "-id")[:50]
+    )
 
     return {
         "invoice": invoice,
         "remaining_balance": remaining,
-        "matches": qs,
+        "best_matches": best_matches,
+        "other_transactions": other_transactions,
     }
 
 
@@ -491,46 +526,88 @@ def sales_invoice_matches(request):
 def sales_invoice_match_apply(request):
     if request.method != "POST":
         return HttpResponseBadRequest("Invalid method")
+    
     invoice_id = (request.POST.get("invoice_id") or "").strip()
-    transaction_id = (request.POST.get("transaction_id") or "").strip()
-    amount_raw = (request.POST.get("amount") or "").strip()
-
-    if not invoice_id.isdigit() or not transaction_id.isdigit():
-        return HttpResponseBadRequest("Invalid match")
+    if not invoice_id.isdigit():
+        return HttpResponseBadRequest("Invalid invoice")
 
     invoice = get_object_or_404(Invoice, pk=int(invoice_id))
-    txn = get_object_or_404(Transaction, pk=int(transaction_id))
+    
+    # Collect all selected transaction matches from the form
+    matches = []
+    for key in request.POST:
+        if key.startswith("match_"):
+            txn_id = key.replace("match_", "")
+            amount_raw = request.POST.get(key, "").strip()
+            if txn_id.isdigit() and amount_raw:
+                try:
+                    amount = Decimal(amount_raw)
+                    if amount > 0:
+                        matches.append({"transaction_id": int(txn_id), "amount": amount})
+                except (InvalidOperation, ValueError):
+                    pass
+    
+    if not matches:
+        return HttpResponseBadRequest("No matches selected.")
 
-    if txn.amount <= 0:
-        return HttpResponseBadRequest("Transaction must be positive to match.")
-    if txn.account_id != invoice.account_id:
-        return HttpResponseBadRequest("Transaction account must match invoice account.")
-
-    try:
-        amount = Decimal(amount_raw) if amount_raw else invoice.remaining_balance
-    except InvalidOperation:
-        return HttpResponseBadRequest("Invalid amount.")
-    if amount <= 0:
-        return HttpResponseBadRequest("Amount must be positive.")
-
-    remaining = invoice.remaining_balance
-    if amount > remaining:
-        return HttpResponseBadRequest("Amount exceeds invoice remaining balance.")
-
-    already_matched = (
-        InvoicePayment.objects.filter(transaction=txn)
-        .aggregate(total=Sum("amount"))["total"]
-        or Decimal("0.00")
-    )
-    if amount + already_matched > txn.amount:
-        return HttpResponseBadRequest("Amount exceeds transaction available balance.")
-
-    with db_transaction.atomic():
-        InvoicePayment.objects.create(
-            invoice=invoice,
-            transaction=txn,
-            amount=amount,
+    # Validate all matches before applying
+    total_matched = Decimal("0.00")
+    validated_matches = []
+    
+    for match in matches:
+        txn = get_object_or_404(Transaction, pk=match["transaction_id"])
+        amount = match["amount"]
+        
+        if txn.amount <= 0:
+            return HttpResponseBadRequest(f"Transaction {txn.id} must be positive.")
+        if txn.account_id != invoice.account_id:
+            return HttpResponseBadRequest(f"Transaction {txn.id} account mismatch.")
+        
+        # Check transaction available balance
+        already_matched = (
+            InvoicePayment.objects.filter(transaction=txn)
+            .aggregate(total=Sum("amount"))["total"]
+            or Decimal("0.00")
         )
+        if amount + already_matched > txn.amount:
+            return HttpResponseBadRequest(
+                f"Transaction {txn.id}: amount {amount} exceeds available {txn.amount - already_matched}."
+            )
+        
+        total_matched += amount
+        validated_matches.append({"transaction": txn, "amount": amount})
+    
+    # Check invoice remaining balance
+    remaining = invoice.remaining_balance
+    if total_matched > remaining:
+        return HttpResponseBadRequest(
+            f"Total matched {total_matched} exceeds invoice remaining {remaining}."
+        )
+
+    # Get the primary category from the invoice (first item's category)
+    first_item = invoice.items.select_related("category").first()
+    invoice_category = first_item.category if first_item else None
+
+    # Apply all matches atomically
+    with db_transaction.atomic():
+        for match in validated_matches:
+            txn = match["transaction"]
+            InvoicePayment.objects.create(
+                invoice=invoice,
+                transaction=txn,
+                amount=match["amount"],
+            )
+            # Set transaction category and vendor from invoice
+            update_fields = []
+            if invoice_category and txn.category_id != invoice_category.id:
+                txn.category = invoice_category
+                txn.kind = invoice_category.kind
+                update_fields += ["category", "kind"]
+            if invoice.customer_id and txn.vendor_id != invoice.customer_id:
+                txn.vendor = invoice.customer
+                update_fields.append("vendor")
+            if update_fields:
+                txn.save(update_fields=update_fields)
         invoice.update_status_from_payments()
         invoice.save()
 

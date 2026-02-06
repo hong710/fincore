@@ -3,12 +3,15 @@
 ## Entities
 - **Account**: Where money lives. Balance is always derived.
   - has `is_active` (boolean). Inactive accounts are archived, never deleted once transactions exist.
-- **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `transfer` | `opening` | `withdraw` | `equity` | `liability` | `cogs`), `is_active`, and `is_protected`. Imported transactions may remain uncategorized until reviewed.
+- **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `transfer` | `opening` | `withdraw` | `equity` | `liability` | `cogs`), `is_active`, and `is_protected`. Imported transactions are assigned to uncategorized categories until reviewed.
+  - **Protected categories**: Cannot be renamed, re-typed, deactivated, or deleted. Used for "Uncategorized Income" and "Uncategorized Expense".
 - **Vendor**: Counterparty directory. Has `kind` (`payer` | `payee`), `description`, `is_active`.
-- **Invoice**: Sales document for matching incoming transactions later. Has `number`, `customer` (Vendor, payer), `account`, `date`, `due_date`, `status`, `subtotal`, `tax_total`, `total`.
-- **InvoiceItem**: Line items for an invoice. Has `category`, `amount`, `tax`, `total`, optional `description`.
+- **Invoice**: Sales document for matching incoming transactions later. Has `number`, `customer` (Vendor, payer), `account`, `date`, `due_date`, `status`, `subtotal`, `tax_rate`, `tax_exclude`, `tax_total`, `total`, `is_locked`.
+  - **Tax calculation**: Tax is computed as `amount × (tax_rate / 100)` per line item.
+  - **Tax locking**: `tax_rate` and `tax_exclude` cannot be changed when status is `paid` or `partially_paid`.
+- **InvoiceItem**: Line items for an invoice. Has `category`, `amount`, `tax`, `total`, `tax_exempt`, optional `description`.
 - **InvoicePayment**: Link between an invoice and a cash transaction. Supports partial payments; stores matched amount and timestamp.
-- **Transaction**: Core single-entry record (date, account, amount, kind, vendor?, payee?, category?, transfer_group?, import_batch?, is_imported, description, source, created_at).
+- **Transaction**: Core single-entry record (date, account, amount, kind, vendor?, payee?, category?, transfer_group?, import_batch?, is_imported, is_locked, description, source, created_at).
   - income  → amount > 0, category required
   - expense → amount < 0, category required
   - transfer → category required, transfer_group required
@@ -17,10 +20,15 @@
   - vendor links to Vendor; direction is determined by kind/amount, not vendor
   - payee is free text (legacy/optional); direction is determined by kind/amount, not payee
   - is_imported true only for CSV-created rows; every imported row links to an import_batch
-  - kind is derived from category when category is present; imported rows may be uncategorized until user assigns a category
+  - kind is derived from category when category is present; imported rows are assigned uncategorized categories
   - protected categories cannot be renamed, re-typed, deactivated, or deleted (description may be updated)
+  - is_locked prevents editing/deletion (used for reconciliation)
 - **TransferGroup**: Pairs transfer transactions; sum per group must be zero.
-- **ImportBatch**: One CSV upload; status `pending|validated|imported|failed`.
+- **ImportBatch**: One CSV upload; status `pending|validated|imported|failed`. Has `amount_strategy` (`signed|indicator|split_columns`), `indicator_credit_value`, `indicator_debit_value`.
+  - **Amount strategies**: 
+    - `signed`: Single signed amount column (default)
+    - `indicator`: Amount + Credit/Debit indicator column
+    - `split_columns`: Separate debit and credit columns
 - **ImportRow**: Staged CSV rows with mapped fields + validation errors; never touch Transaction until batch commits.
 
 ## ERD (conceptual)
@@ -58,10 +66,14 @@ Details:
 - **invoice**
   - id PK, number (unique), customer_id FK (Vendor, payer), account_id FK (Account)
   - date, due_date?, status (`draft|sent|partially_paid|paid|void`)
-  - subtotal, tax_total, total (derived from items on save), notes?, created_at
+  - subtotal, tax_rate (percentage), tax_exclude (boolean), tax_total, total (computed from items on save)
+  - is_locked (boolean, for reconciliation), notes?, created_at
+  - **Tax rules**: 
+    - Tax per line = `amount × (tax_rate / 100)` unless line is tax_exempt or invoice has tax_exclude=true
+    - tax_rate and tax_exclude are read-only when status is `paid` or `partially_paid`
 - **invoice_item**
   - id PK, invoice_id FK (CASCADE), category_id FK (PROTECT)
-  - amount, tax, total, description?, created_at
+  - amount, tax, total, tax_exempt (boolean), description?, created_at
 - **invoice_payment**
   - id PK, invoice_id FK (PROTECT), transaction_id FK (PROTECT)
   - amount, matched_at
@@ -71,7 +83,7 @@ Details:
 - **transaction**
   - id PK, date, account_id FK, amount (signed), kind (`income|expense|transfer|opening|withdraw|equity|liability|cogs`),
     vendor_id FK NULL, payee (text, optional), category_id FK NULL, transfer_group_id FK NULL,
-    is_imported (bool, default false), import_batch_id FK NULL (PROTECT),
+    is_imported (bool, default false), is_locked (bool, default false), import_batch_id FK NULL (PROTECT),
     description, source (`manual|csv`), created_at
   - business rules (enforced in validation/service layer):
     - income: amount > 0 AND category_id NOT NULL
@@ -79,16 +91,19 @@ Details:
     - transfer: category_id NOT NULL AND transfer_group_id NOT NULL
     - opening: category_id NOT NULL; excluded from P&L; payee optional
     - withdraw: category_id NOT NULL; excluded from P&L
-    - imported rows may keep category_id NULL until reviewed
+    - imported rows are assigned to "Uncategorized Income" or "Uncategorized Expense" categories until reviewed
     - each transfer_group sums to zero (paired +/–)
     - imported rows: if is_imported=true then import_batch_id is required and matches batch that created them; all rows in a batch share the same import_batch_id; imported transfers keep both sides in the same batch
+    - is_locked prevents editing/deletion (used for reconciliation)
 
 ## Profit & Loss Rules
-- Income is derived **only** from InvoiceItems (by category).
+- Income is derived from **both** InvoiceItems (invoice-based revenue) **and** Transactions with `kind="income"` (imported/manual income).
+- InvoiceItem income and Transaction income are merged by category and period.
 - Expenses/COGS come from Transactions with kind `expense` or `cogs`.
 - Always exclude transfers, opening, and withdraw transactions.
-- Transactions that are matched to invoices (InvoicePayment exists) are excluded from P&L.
-- Documented behavior: “Profit & Loss shows invoice revenue and cash expenses. Matched invoice payments never double-count revenue.”
+- Transactions that are matched to invoices (InvoicePayment exists) are excluded from income P&L to prevent double-counting.
+- Uncategorized categories ("Uncategorized Income", "Uncategorized Expense") always appear in P&L even when $0.00.
+- Documented behavior: "Profit & Loss shows invoice revenue plus transaction-based income (imports, manual entries) and cash expenses. Matched invoice payments never double-count revenue."
 
 ## Account Lifecycle
 - Accounts with any transactions must never be hard-deleted. Archive by setting `is_active = false`.
@@ -96,6 +111,13 @@ Details:
 - Transfers must keep referenced accounts; cascade deletes are forbidden.
 - **import_batch**
   - id PK, filename, status (`pending|validated|imported|failed`), error_message?, uploaded_at
+  - amount_strategy (`signed|indicator|split_columns`, default `signed`)
+  - indicator_credit_value (text, nullable) - Value in indicator column that means "credit"
+  - indicator_debit_value (text, nullable) - Value in indicator column that means "debit"
+  - **Amount strategy rules**:
+    - `signed`: User maps one Amount column with +/- values
+    - `indicator`: User maps Amount column + Indicator column, configures which indicator value means credit
+    - `split_columns`: User maps separate Debit and Credit columns
 - **import_row**
   - id PK, batch_id FK, raw_row (JSON), mapped (JSON), errors (JSON), created_at
 
