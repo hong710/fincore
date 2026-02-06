@@ -21,6 +21,36 @@ from fincore.models import Account, Category, InvoiceItem, Transaction, Transfer
 
 
 def _render_transfer_list(request, category=None):
+    # Get filter parameters
+    date_range = (request.GET.get("date_range") or "this_year").strip()
+    date_from = (request.GET.get("date_from") or "").strip()
+    date_to = (request.GET.get("date_to") or "").strip()
+    vendor_id = (request.GET.get("vendor_id") or "").strip()
+    account_id = (request.GET.get("account_id") or "").strip()
+
+    date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
+
+    # Get filter lists
+    vendors = list(Vendor.objects.filter(is_active=True).order_by("name"))
+    accounts = list(Account.objects.filter(is_active=True).order_by("name"))
+    vendor_ids = {v.id for v in vendors}
+    account_ids = {a.id for a in accounts}
+
+    # Normalize vendor_id and account_id
+    try:
+        vendor_id_int = int(vendor_id) if vendor_id.isdigit() else None
+    except (ValueError, TypeError):
+        vendor_id_int = None
+    if vendor_id_int not in vendor_ids:
+        vendor_id_int = None
+
+    try:
+        account_id_int = int(account_id) if account_id.isdigit() else None
+    except (ValueError, TypeError):
+        account_id_int = None
+    if account_id_int not in account_ids:
+        account_id_int = None
+
     groups = (
         TransferGroup.objects.prefetch_related(
             "transactions__account",
@@ -29,6 +59,32 @@ def _render_transfer_list(request, category=None):
         )
         .order_by("-created_at")
     )
+
+    # Apply filters to transactions through the groups
+    if start_date or end_date or vendor_id_int or account_id_int:
+        # Filter groups based on their transactions
+        filtered_group_ids = set()
+        for group in groups:
+            txns = list(group.transactions.all())
+            if not txns:
+                continue
+            # Check if any transaction matches filters
+            matches = False
+            for txn in txns:
+                date_match = True
+                if start_date and txn.date < start_date:
+                    date_match = False
+                if end_date and txn.date > end_date:
+                    date_match = False
+                vendor_match = (not vendor_id_int) or (txn.vendor_id == vendor_id_int)
+                account_match = (not account_id_int) or (txn.account_id == account_id_int)
+                if date_match and vendor_match and account_match:
+                    matches = True
+                    break
+            if matches:
+                filtered_group_ids.add(group.id)
+        groups = groups.filter(id__in=filtered_group_ids)
+
     page_size = 25
     try:
         page_size = int(request.GET.get("page_size") or page_size)
@@ -56,6 +112,11 @@ def _render_transfer_list(request, category=None):
                 "count": len(txns),
             }
         )
+
+    # Build query params for pagination
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+
     return render(
         request,
         "fincore/transactions/transfers.html",
@@ -63,6 +124,15 @@ def _render_transfer_list(request, category=None):
             "category": category,
             "page_obj": page_obj,
             "rows": rows,
+            "date_range": date_range,
+            "date_from": date_from,
+            "date_to": date_to,
+            "vendor_id": vendor_id_int,
+            "account_id": account_id_int,
+            "report_ranges": REPORT_RANGE_OPTIONS,
+            "vendors": vendors,
+            "accounts": accounts,
+            "filter_query": query_params.urlencode(),
         },
     )
 
@@ -270,8 +340,31 @@ def category_report(request, pk):
     date_range = (request.GET.get("date_range") or "this_year").strip()
     date_from = (request.GET.get("date_from") or "").strip()
     date_to = (request.GET.get("date_to") or "").strip()
+    vendor_id = (request.GET.get("vendor_id") or "").strip()
+    account_id = (request.GET.get("account_id") or "").strip()
 
     date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
+
+    # Get filter lists
+    vendors = list(Vendor.objects.filter(is_active=True).order_by("name"))
+    accounts = list(Account.objects.filter(is_active=True).order_by("name"))
+    vendor_ids = {v.id for v in vendors}
+    account_ids = {a.id for a in accounts}
+
+    # Normalize vendor_id and account_id
+    try:
+        vendor_id_int = int(vendor_id) if vendor_id.isdigit() else None
+    except (ValueError, TypeError):
+        vendor_id_int = None
+    if vendor_id_int not in vendor_ids:
+        vendor_id_int = None
+
+    try:
+        account_id_int = int(account_id) if account_id.isdigit() else None
+    except (ValueError, TypeError):
+        account_id_int = None
+    if account_id_int not in account_ids:
+        account_id_int = None
 
     qs = (
         Transaction.objects.select_related("account", "vendor")
@@ -283,6 +376,10 @@ def category_report(request, pk):
         qs = qs.filter(date__gte=start_date)
     if end_date:
         qs = qs.filter(date__lte=end_date)
+    if vendor_id_int:
+        qs = qs.filter(vendor_id=vendor_id_int)
+    if account_id_int:
+        qs = qs.filter(account_id=account_id_int)
 
     # Calculate total for all filtered transactions
     total_amount = qs.aggregate(total=Sum("amount"))["total"] or 0
@@ -312,11 +409,15 @@ def category_report(request, pk):
             "date_range": date_range,
             "date_from": date_from,
             "date_to": date_to,
+            "vendor_id": vendor_id_int,
+            "account_id": account_id_int,
             "goto_date_range": goto_date_range,
             "goto_date_from": goto_date_from,
             "goto_date_to": goto_date_to,
             "filter_query": query_params.urlencode(),
             "report_ranges": REPORT_RANGE_OPTIONS,
+            "vendors": vendors,
+            "accounts": accounts,
             "total_amount": total_amount,
         },
     )
@@ -1056,7 +1157,7 @@ def transaction_bulk_action(request):
     except ValueError:
         return HttpResponseBadRequest("Invalid transaction selection")
 
-    if action not in {"category", "payee"}:
+    if action not in {"category", "payee", "delete"}:
         return render(
             request,
             "fincore/accounts/form_errors.html",
@@ -1064,7 +1165,21 @@ def transaction_bulk_action(request):
             status=200,
         )
 
-    if action == "category":
+    if action == "delete":
+        # Only allow deleting manually created transactions
+        transactions = Transaction.objects.filter(id__in=transaction_ids)
+        blocked = transactions.filter(
+            Q(is_imported=True) | Q(is_locked=True) | Q(transfer_group__isnull=False)
+        )
+        if blocked.exists():
+            return render(
+                request,
+                "fincore/accounts/form_errors.html",
+                {"form_errors": ["Cannot delete imported, locked, or transfer transactions."]},
+                status=200,
+            )
+        transactions.delete()
+    elif action == "category":
         try:
             category_id = int(request.POST.get("category_id") or 0)
         except (TypeError, ValueError):

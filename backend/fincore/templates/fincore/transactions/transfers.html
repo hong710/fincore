@@ -15,7 +15,56 @@
     </div>
   </div>
 
-  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]">
+  <form class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" method="get" autocomplete="off"
+    x-data="{ 
+      range: '{{ date_range }}',
+      init() {
+        // Reset selects to server-rendered values (override browser autocomplete)
+        this.$el.querySelectorAll('select').forEach(s => {
+          const serverSelected = s.querySelector('option[data-server-selected]');
+          if (serverSelected) s.value = serverSelected.value;
+        });
+      }
+    }">
+    <div class="flex flex-wrap items-end gap-4">
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Report period</span>
+        <select name="date_range" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="range" onchange="this.form.submit()">
+          {% for value, label in report_ranges %}
+            <option value="{{ value }}" {% if date_range == value %}selected data-server-selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
+        <span>From</span>
+        <input type="date" name="date_from" value="{{ date_from }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
+        <span>To</span>
+        <input type="date" name="date_to" value="{{ date_to }}" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Vendor</span>
+        <select name="vendor_id" autocomplete="off" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+          <option value="" {% if not vendor_id %}selected data-server-selected{% endif %}>All vendors</option>
+          {% for vendor in vendors %}
+            <option value="{{ vendor.id }}" {% if vendor_id == vendor.id %}selected data-server-selected{% endif %}>{{ vendor.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Account</span>
+        <select name="account_id" autocomplete="off" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
+          <option value="" {% if not account_id %}selected data-server-selected{% endif %}>All accounts</option>
+          {% for account in accounts %}
+            <option value="{{ account.id }}" {% if account_id == account.id %}selected data-server-selected{% endif %}>{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+  </form>
+
+  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-300px)]">
     <div class="overflow-auto">
       <table class="min-w-full table-auto text-sm text-slate-800">
         <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
@@ -74,13 +123,13 @@
         <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
         <div class="inline-flex items-center rounded-md border border-slate-200 text-xs text-slate-700 overflow-hidden">
           {% if page_obj.has_previous %}
-            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.previous_page_number }}">Prev</a>
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.previous_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}">Prev</a>
           {% else %}
             <span class="px-2 py-1 text-slate-400">Prev</span>
           {% endif %}
           <span class="border-l border-r border-slate-200 px-2 py-1">{{ page_obj.number }}</span>
           {% if page_obj.has_next %}
-            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.next_page_number }}">Next</a>
+            <a class="px-2 py-1 hover:bg-slate-50" href="?page={{ page_obj.next_page_number }}{% if filter_query %}&{{ filter_query }}{% endif %}">Next</a>
           {% else %}
             <span class="px-2 py-1 text-slate-400">Next</span>
           {% endif %}

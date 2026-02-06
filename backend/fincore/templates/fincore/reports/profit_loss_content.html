@@ -1,20 +1,22 @@
 {% load formatting %}
-<div class="overflow-auto{% if is_single_period %} max-w-5xl mx-auto{% endif %}" x-data="{ openIncome: true, openCogs: true, openExpenses: true, openOtherIncome: true, openOtherExpenses: true }">
-  <table class="{% if is_single_period %}table-auto{% else %}min-w-full{% endif %} text-sm text-slate-800">
-    <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
-      <tr class="sticky top-0 bg-slate-50">
-        <th class="py-2 px-4 text-left {% if is_single_period %}max-w-xl w-full{% endif %}">Category</th>
-        {% if is_single_period %}
-          <th class="py-2 px-4 text-right w-40">Amount</th>
-        {% else %}
-          {% for column in columns %}
-            <th class="py-2 px-4 text-right">{{ column.label }}</th>
-          {% endfor %}
-          <th class="py-2 px-4 text-right">Total</th>
-        {% endif %}
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-slate-200">
+<div class="flex flex-col h-full{% if is_single_period %} max-w-5xl mx-auto{% endif %}" x-data="{ openIncome: true, openCogs: true, openExpenses: true, openOtherIncome: true, openOtherExpenses: true }">
+  <!-- Scrollable table area -->
+  <div class="flex-1 overflow-auto min-h-0">
+    <table class="{% if is_single_period %}table-auto{% else %}min-w-full{% endif %} text-sm text-slate-800">
+      <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+        <tr class="sticky top-0 bg-slate-50">
+          <th class="py-2 px-4 text-left {% if is_single_period %}max-w-xl w-full{% endif %}">Category</th>
+          {% if is_single_period %}
+            <th class="py-2 px-4 text-right w-40">Amount</th>
+          {% else %}
+            {% for column in columns %}
+              <th class="py-2 px-4 text-right">{{ column.label }}</th>
+            {% endfor %}
+            <th class="py-2 px-4 text-right">Total</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200">
       {% if income_rows or cogs_rows or expense_rows %}
         <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
           <td class="px-4 py-2" colspan="{% if is_single_period %}2{% else %}{{ columns|length|add:'2' }}{% endif %}">
@@ -259,28 +261,34 @@
           <td class="px-4 py-3 text-sm text-slate-500" colspan="{% if is_single_period %}2{% else %}{{ columns|length|add:'2' }}{% endif %}">—</td>
         </tr>
 
-        <tr class="bg-indigo-50 text-sm font-semibold text-slate-900">
-          <td class="px-4 py-3">Net Income</td>
-          {% if is_single_period %}
-            <td class="px-4 py-3 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %} w-40">
-              {{ net_income_display|currency }}
-            </td>
-          {% else %}
-            {% for total in net_income_column_totals %}
-              <td class="px-4 py-2 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %}">
-                {{ total|currency }}
-              </td>
-            {% endfor %}
-            <td class="px-4 py-3 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %}">
-              {{ net_income_display|currency }}
-            </td>
-          {% endif %}
-        </tr>
       {% else %}
         <tr>
           <td colspan="{% if is_single_period %}2{% else %}{{ columns|length|add:'2' }}{% endif %}" class="px-4 py-6 text-center text-sm text-slate-500">No profit &amp; loss data for the selected filters.</td>
         </tr>
       {% endif %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+  </div>
+  <!-- Fixed Net Income footer -->
+  <div class="flex-shrink-0 border-t border-slate-300 bg-indigo-50">
+    <table class="{% if is_single_period %}table-auto{% else %}min-w-full{% endif %} text-sm">
+      <tr class="text-sm font-semibold text-slate-900">
+        <td class="px-4 py-3 {% if is_single_period %}w-full{% endif %}">Net Income</td>
+        {% if is_single_period %}
+          <td class="px-4 py-3 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %} w-40">
+            {{ net_income_display|currency }}
+          </td>
+        {% else %}
+          {% for total in net_income_column_totals %}
+            <td class="px-4 py-2 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ total|currency }}
+            </td>
+          {% endfor %}
+          <td class="px-4 py-3 text-right {% if net_income_is_negative %}text-rose-600{% else %}text-emerald-600{% endif %}">
+            {{ net_income_display|currency }}
+          </td>
+        {% endif %}
+      </tr>
+    </table>
+  </div>
 </div>

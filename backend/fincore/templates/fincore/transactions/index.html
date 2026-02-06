@@ -360,6 +360,9 @@
         <div id="import-feedback" class="text-sm"></div>
         <input type="hidden" name="account_id" :value="selectedAccount">
         <input type="hidden" name="mapping" :value="JSON.stringify(mappings)">
+        <input type="hidden" name="amount_strategy" :value="amountStrategy">
+        <input type="hidden" name="indicator_credit_value" :value="indicatorCreditValue">
+        <input type="hidden" name="indicator_debit_value" :value="indicatorDebitValue">
       <div class="flex items-center gap-2 text-xs font-semibold text-slate-600">
         <template x-for="(label, index) in steps" :key="index">
           <div class="flex items-center gap-2">
@@ -398,13 +401,47 @@
         <div class="flex items-start justify-between">
           <div>
             <h3 class="text-sm font-semibold text-slate-800">3) Column mapping</h3>
-            <p class="text-xs text-slate-500">Map exactly one column to Date, Description, Amount. Everything else → Ignore. Kind/Category/Transfer/Account mappings are forbidden.</p>
+            <p class="text-xs text-slate-500">Map columns and select how amounts are represented in your CSV.</p>
           </div>
           <p class="text-xs font-semibold" :class="mappingComplete() ? 'text-emerald-600' : 'text-amber-600'" x-text="mappingComplete() ? 'Ready' : 'Incomplete'"></p>
         </div>
-        <div class="overflow-hidden rounded border border-slate-200 bg-white">
+
+        <!-- Amount strategy radio -->
+        <div class="space-y-2">
+          <label class="block text-xs font-semibold text-slate-700">Amount format</label>
+          <div class="flex flex-wrap gap-4">
+            <label class="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+              <input type="radio" name="strategy_radio" value="signed" x-model="amountStrategy" @change="onStrategyChange()" class="h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500">
+              <span>Signed amount <span class="text-slate-400">(−44.22, +412.00)</span></span>
+            </label>
+            <label class="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+              <input type="radio" name="strategy_radio" value="indicator" x-model="amountStrategy" @change="onStrategyChange()" class="h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500">
+              <span>Amount + indicator <span class="text-slate-400">(1828.70, Credit)</span></span>
+            </label>
+            <label class="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+              <input type="radio" name="strategy_radio" value="split_columns" x-model="amountStrategy" @change="onStrategyChange()" class="h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500">
+              <span>Debit / Credit columns</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Indicator config (only for indicator strategy) -->
+        <div x-show="amountStrategy === 'indicator'" x-cloak class="flex flex-wrap items-end gap-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+          <label class="space-y-1">
+            <span class="block text-xs font-semibold text-slate-700">Credit value</span>
+            <input type="text" class="w-32 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="indicatorCreditValue" @input="updatePreview()" placeholder="Credit">
+          </label>
+          <label class="space-y-1">
+            <span class="block text-xs font-semibold text-slate-700">Debit value</span>
+            <input type="text" class="w-32 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="indicatorDebitValue" @input="updatePreview()" placeholder="Debit">
+          </label>
+          <p class="text-xs text-amber-700">Enter the exact text values from your CSV that indicate Credit vs Debit.</p>
+        </div>
+
+        <!-- Column mapping table -->
+        <div class="rounded border border-slate-200 bg-white max-h-[320px] overflow-auto">
           <table class="min-w-full text-xs">
-            <thead class="bg-slate-50 text-slate-600">
+            <thead class="bg-slate-50 text-slate-600 sticky top-0 z-10">
               <tr>
                 <th class="px-3 py-2 text-left">CSV Column</th>
                 <th class="px-3 py-2 text-left">Map to</th>
@@ -413,14 +450,18 @@
             <tbody class="divide-y divide-slate-100">
               <template x-for="col in columns" :key="col">
                 <tr class="hover:bg-slate-50">
-                  <td class="px-3 py-2 font-medium text-slate-700" x-text="col"></td>
+                  <td class="px-3 py-2 font-medium text-slate-700 max-w-[200px] truncate" x-text="col" :title="col"></td>
                   <td class="px-3 py-2">
-                    <select class="w-48 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+                    <select class="w-48 rounded-md bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+                      :class="mappings[col] !== 'ignore' ? 'border-indigo-500 ring-1 ring-indigo-200 font-semibold text-indigo-700' : 'border border-slate-200'"
                       x-model="mappings[col]" @change="updatePreview()">
                       <option value="ignore">Ignore</option>
                       <option value="date">Date</option>
                       <option value="description">Description</option>
-                      <option value="amount">Amount</option>
+                      <option value="amount" :disabled="amountStrategy === 'split_columns'" x-text="amountStrategy === 'indicator' ? 'Amount (unsigned)' : 'Amount (signed)'" x-show="amountStrategy !== 'split_columns'">Amount</option>
+                      <option value="indicator" :disabled="amountStrategy !== 'indicator'" x-show="amountStrategy === 'indicator'">Credit/Debit Indicator</option>
+                      <option value="debit" :disabled="amountStrategy !== 'split_columns'" x-show="amountStrategy === 'split_columns'">Debit</option>
+                      <option value="credit" :disabled="amountStrategy !== 'split_columns'" x-show="amountStrategy === 'split_columns'">Credit</option>
                     </select>
                   </td>
                 </tr>
@@ -438,7 +479,8 @@
               <tr>
                 <th class="px-3 py-2 text-left">Date</th>
                 <th class="px-3 py-2 text-left">Description</th>
-                <th class="px-3 py-2 text-left">Amount</th>
+                <th class="px-3 py-2 text-right">Raw</th>
+                <th class="px-3 py-2 text-right">Signed Amount</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -446,7 +488,8 @@
                 <tr class="hover:bg-slate-50">
                   <td class="px-3 py-2 text-slate-800" x-text="row.date"></td>
                   <td class="px-3 py-2 text-slate-800" x-text="row.description"></td>
-                  <td class="px-3 py-2 text-slate-800" x-text="row.amount"></td>
+                  <td class="px-3 py-2 text-right text-slate-500" x-text="row.rawDisplay"></td>
+                  <td class="px-3 py-2 text-right font-semibold" :class="row.signedClass" x-text="row.signedDisplay"></td>
                 </tr>
               </template>
             </tbody>
@@ -458,10 +501,28 @@
         <h3 class="text-sm font-semibold text-slate-800">5) Confirm import</h3>
         <ul class="list-disc pl-5 text-xs text-slate-700 space-y-1">
           <li>All rows will be marked imported and linked to one import batch.</li>
-          <li>Amount &lt; 0 → Expense, Amount &gt; 0 → Income.</li>
+          <li>Amounts are normalised to a signed value: positive = income, negative = expense.</li>
           <li>Category and Payee will be empty; no auto-transfers or balances used.</li>
           <li>Rollback is only allowed per import batch (never partial).</li>
         </ul>
+        <div class="mt-2 rounded-md border border-slate-200 bg-white p-3">
+          <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+            <dt class="font-semibold text-slate-600">Strategy</dt>
+            <dd class="text-slate-800" x-text="amountStrategy === 'signed' ? 'Signed Amount' : amountStrategy === 'indicator' ? 'Amount + Indicator' : 'Debit / Credit Columns'"></dd>
+            <template x-if="amountStrategy === 'indicator'">
+              <dt class="font-semibold text-slate-600">Credit value</dt>
+            </template>
+            <template x-if="amountStrategy === 'indicator'">
+              <dd class="text-slate-800" x-text="indicatorCreditValue"></dd>
+            </template>
+            <template x-if="amountStrategy === 'indicator'">
+              <dt class="font-semibold text-slate-600">Debit value</dt>
+            </template>
+            <template x-if="amountStrategy === 'indicator'">
+              <dd class="text-slate-800" x-text="indicatorDebitValue"></dd>
+            </template>
+          </dl>
+        </div>
       </div>
     </div>
       <div class="flex items-center justify-between border-t border-slate-200 p-4">
@@ -514,6 +575,13 @@
       return cells;
     };
 
+    const parseNum = (val) => {
+      let s = (val || "").replace(/[$,]/g, "").trim();
+      if (s.startsWith("(") && s.endsWith(")")) s = "-" + s.slice(1, -1);
+      const n = parseFloat(s);
+      return isNaN(n) ? null : n;
+    };
+
     return {
       steps: ["Upload", "Account", "Map", "Preview", "Confirm"],
       currentStep: 0,
@@ -533,6 +601,12 @@
       })),
       prefillAccountId: JSON.parse(document.getElementById("import-prefill-account").textContent),
       selectedAccount: "",
+
+      /* ── Amount strategy state ── */
+      amountStrategy: "signed",
+      indicatorCreditValue: "Credit",
+      indicatorDebitValue: "Debit",
+
       init() {
         if (this.prefillAccountId) {
           this.selectedAccount = String(this.prefillAccountId);
@@ -549,10 +623,64 @@
         this.mappings = {};
         this.rawRows = [];
         this.previewRows = [];
+        this.amountStrategy = "signed";
+        this.indicatorCreditValue = "Credit";
+        this.indicatorDebitValue = "Debit";
         this.selectedAccount = this.prefillAccountId ? String(this.prefillAccountId) : "";
         const feedback = document.getElementById("import-feedback");
         if (feedback) feedback.innerHTML = "";
       },
+
+      /* ── Mapping options based on strategy ── */
+      mappingOptions() {
+        const base = [
+          { value: "ignore", label: "Ignore" },
+          { value: "date", label: "Date" },
+          { value: "description", label: "Description" },
+        ];
+        if (this.amountStrategy === "signed") {
+          base.push({ value: "amount", label: "Amount (signed)" });
+        } else if (this.amountStrategy === "indicator") {
+          base.push({ value: "amount", label: "Amount (unsigned)" });
+          base.push({ value: "indicator", label: "Credit/Debit Indicator" });
+        } else if (this.amountStrategy === "split_columns") {
+          base.push({ value: "debit", label: "Debit" });
+          base.push({ value: "credit", label: "Credit" });
+        }
+        return base;
+      },
+
+      /* ── Auto-detect strategy from CSV headers ── */
+      autoDetectStrategy(columns) {
+        const lower = columns.map((c) => c.toLowerCase().trim());
+        if (lower.some((c) => /credit.*debit|debit.*credit/.test(c) && /indicator|type|flag/.test(c))) {
+          return "indicator";
+        }
+        const hasDebitCol = lower.some((c) => /^debit$|^debit\s*amount$/.test(c));
+        const hasCreditCol = lower.some((c) => /^credit$|^credit\s*amount$/.test(c));
+        if (hasDebitCol && hasCreditCol) {
+          return "split_columns";
+        }
+        return "signed";
+      },
+
+      /* ── When strategy changes, reset amount-related mappings ── */
+      onStrategyChange() {
+        const amountKeys = ["amount", "indicator", "debit", "credit"];
+        for (const col of this.columns) {
+          if (amountKeys.includes(this.mappings[col])) {
+            this.mappings[col] = "ignore";
+          }
+        }
+        const autoMapped = this.autoMap(this.columns);
+        for (const [col, target] of Object.entries(autoMapped)) {
+          if (amountKeys.includes(target)) {
+            this.mappings[col] = target;
+          }
+        }
+        this.updatePreview();
+      },
+
       buildDefaultMap(columns) {
         const map = {};
         columns.forEach((col) => {
@@ -560,6 +688,7 @@
         });
         return map;
       },
+
       autoMap(columns) {
         const map = {};
         const byPriority = (patterns) => {
@@ -570,25 +699,90 @@
           return null;
         };
         const dateCol = byPriority([/posting\s*date/, /transaction\s*date/, /date/]);
-        const descCol = byPriority([/description/, /details/]);
-        const amountCol = byPriority([/amount/]);
+        const descCol = byPriority([/description/, /details/, /memo/]);
         if (dateCol) map[dateCol] = "date";
         if (descCol) map[descCol] = "description";
-        if (amountCol) map[amountCol] = "amount";
+
+        if (this.amountStrategy === "signed") {
+          const amountCol = byPriority([/amount/]);
+          if (amountCol) map[amountCol] = "amount";
+        } else if (this.amountStrategy === "indicator") {
+          const amountCol = byPriority([/^amount$/]);
+          if (amountCol) map[amountCol] = "amount";
+          const indicatorCol = byPriority([/credit.*debit.*indicator/, /debit.*credit.*indicator/, /indicator/]);
+          if (indicatorCol) map[indicatorCol] = "indicator";
+        } else if (this.amountStrategy === "split_columns") {
+          const debitCol = byPriority([/^debit$/, /^debit\s*amount$/]);
+          const creditCol = byPriority([/^credit$/, /^credit\s*amount$/]);
+          if (debitCol) map[debitCol] = "debit";
+          if (creditCol) map[creditCol] = "credit";
+        }
         return map;
       },
+
+      /* ── Compute signed amount for one preview row ── */
+      computeSignedAmount(row) {
+        if (this.amountStrategy === "signed") {
+          return parseNum(row.amount);
+        } else if (this.amountStrategy === "indicator") {
+          const amount = parseNum(row.amount);
+          if (amount === null) return null;
+          const ind = (row.indicator || "").trim().toLowerCase();
+          const creditVal = this.indicatorCreditValue.trim().toLowerCase();
+          const debitVal = this.indicatorDebitValue.trim().toLowerCase();
+          if (creditVal && ind === creditVal) return Math.abs(amount);
+          if (debitVal && ind === debitVal) return -Math.abs(amount);
+          return null;
+        } else if (this.amountStrategy === "split_columns") {
+          const debit = row.debit ? parseNum(row.debit) : null;
+          const credit = row.credit ? parseNum(row.credit) : null;
+          if (debit !== null && credit !== null) return null;
+          if (debit === null && credit === null) return null;
+          if (debit !== null) return -Math.abs(debit);
+          return Math.abs(credit);
+        }
+        return null;
+      },
+
       updatePreview() {
         const getMapped = (row, key) => {
           const column = Object.keys(this.mappings).find((col) => this.mappings[col] === key);
           return column ? row[column] || "" : "";
         };
-        this.previewRows = this.rawRows.map((row, idx) => ({
-          id: idx + 1,
-          date: getMapped(row, "date"),
-          description: getMapped(row, "description"),
-          amount: getMapped(row, "amount"),
-        }));
+        this.previewRows = this.rawRows.map((row, idx) => {
+          const pr = {
+            id: idx + 1,
+            date: getMapped(row, "date"),
+            description: getMapped(row, "description"),
+          };
+          if (this.amountStrategy === "signed") {
+            pr.amount = getMapped(row, "amount");
+            pr.rawDisplay = pr.amount;
+          } else if (this.amountStrategy === "indicator") {
+            pr.amount = getMapped(row, "amount");
+            pr.indicator = getMapped(row, "indicator");
+            pr.rawDisplay = pr.amount + " (" + pr.indicator + ")";
+          } else if (this.amountStrategy === "split_columns") {
+            pr.debit = getMapped(row, "debit");
+            pr.credit = getMapped(row, "credit");
+            pr.rawDisplay = pr.debit ? "Dr " + pr.debit : "Cr " + pr.credit;
+          }
+          const signed = this.computeSignedAmount(pr);
+          pr.signedAmount = signed;
+          if (signed === null) {
+            pr.signedDisplay = "ERR";
+            pr.signedClass = "text-rose-600";
+          } else if (signed >= 0) {
+            pr.signedDisplay = "+" + signed.toFixed(2);
+            pr.signedClass = "text-emerald-600";
+          } else {
+            pr.signedDisplay = signed.toFixed(2);
+            pr.signedClass = "text-rose-600";
+          }
+          return pr;
+        });
       },
+
       onFileSelect(event) {
         const file = event.target.files[0];
         this.fileName = file ? file.name : "";
@@ -608,6 +802,11 @@
             return;
           }
           this.columns = headers;
+          this.amountStrategy = this.autoDetectStrategy(headers);
+          if (this.amountStrategy === "indicator") {
+            this.indicatorCreditValue = "Credit";
+            this.indicatorDebitValue = "Debit";
+          }
           const defaults = this.buildDefaultMap(headers);
           this.mappings = { ...defaults, ...this.autoMap(headers) };
           this.rawRows = [];
@@ -624,13 +823,26 @@
         };
         reader.readAsText(file);
       },
+
       mappingComplete() {
         const values = Object.values(this.mappings);
         const hasDate = values.filter((v) => v === "date").length === 1;
-        const hasDesc = values.filter((v) => v === "description").length === 1;
-        const hasAmount = values.filter((v) => v === "amount").length === 1;
-        return hasDate && hasDesc && hasAmount;
+        if (this.amountStrategy === "signed") {
+          return hasDate && values.filter((v) => v === "amount").length === 1;
+        } else if (this.amountStrategy === "indicator") {
+          return hasDate
+            && values.filter((v) => v === "amount").length === 1
+            && values.filter((v) => v === "indicator").length === 1
+            && this.indicatorCreditValue.trim() !== ""
+            && this.indicatorDebitValue.trim() !== "";
+        } else if (this.amountStrategy === "split_columns") {
+          return hasDate
+            && values.filter((v) => v === "debit").length === 1
+            && values.filter((v) => v === "credit").length === 1;
+        }
+        return false;
       },
+
       canNext() {
         if (this.currentStep === 0) return !!this.fileName;
         if (this.currentStep === 1) return !!this.selectedAccount;

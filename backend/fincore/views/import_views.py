@@ -14,8 +14,109 @@ from django.urls import reverse
 from fincore.models import Account, ImportBatch, ImportRow, Transaction
 
 
-REQUIRED_MAP_KEYS = {"date", "description", "amount"}
-ALLOWED_MAP_VALUES = {"ignore", "date", "description", "amount"}
+ALLOWED_MAP_VALUES = {"ignore", "date", "description", "amount", "indicator", "debit", "credit"}
+VALID_STRATEGIES = {"signed", "indicator", "split_columns"}
+
+
+def _parse_numeric(raw):
+    """Parse a raw string into a Decimal, handling common formats."""
+    raw = (raw or "").strip().replace(",", "").replace("$", "")
+    if raw.startswith("(") and raw.endswith(")"):
+        raw = f"-{raw[1:-1]}"
+    return Decimal(raw)
+
+
+def _validate_mapping(mapping, amount_strategy):
+    """Validate column mapping based on amount strategy. Returns list of error strings."""
+    errors = []
+    values = [v for v in mapping.values() if v != "ignore"]
+
+    if values.count("date") != 1:
+        errors.append("Mapping must include exactly one Date column.")
+    if values.count("description") > 1:
+        errors.append("At most one Description column allowed.")
+
+    if amount_strategy == "signed":
+        if values.count("amount") != 1:
+            errors.append("Mapping must include exactly one Amount column.")
+        for forbidden in ("indicator", "debit", "credit"):
+            if forbidden in values:
+                errors.append(f"'{forbidden}' is not valid for Signed Amount strategy.")
+
+    elif amount_strategy == "indicator":
+        if values.count("amount") != 1:
+            errors.append("Mapping must include exactly one Amount column.")
+        if values.count("indicator") != 1:
+            errors.append("Mapping must include exactly one Indicator column.")
+        for forbidden in ("debit", "credit"):
+            if forbidden in values:
+                errors.append(f"'{forbidden}' is not valid for Amount + Indicator strategy.")
+
+    elif amount_strategy == "split_columns":
+        if values.count("debit") != 1:
+            errors.append("Mapping must include exactly one Debit column.")
+        if values.count("credit") != 1:
+            errors.append("Mapping must include exactly one Credit column.")
+        for forbidden in ("amount", "indicator"):
+            if forbidden in values:
+                errors.append(f"'{forbidden}' is not valid for Debit/Credit strategy.")
+
+    return errors
+
+
+def _normalize_row_amount(mapped, amount_strategy, indicator_credit, indicator_debit):
+    """Normalize amount to signed Decimal. Returns (value_or_none, error_list)."""
+    if amount_strategy == "signed":
+        raw = str(mapped.get("amount", "") or "").strip()
+        if not raw:
+            return None, ["Missing amount value."]
+        try:
+            return _parse_numeric(raw), []
+        except (InvalidOperation, ValueError):
+            return None, ["Invalid amount value."]
+
+    elif amount_strategy == "indicator":
+        raw_amount = str(mapped.get("amount", "") or "").strip()
+        raw_indicator = str(mapped.get("indicator", "") or "").strip()
+        errs = []
+        if not raw_amount:
+            errs.append("Missing amount value.")
+        if not raw_indicator:
+            errs.append("Missing indicator value.")
+        if errs:
+            return None, errs
+        try:
+            unsigned = _parse_numeric(raw_amount)
+        except (InvalidOperation, ValueError):
+            return None, ["Invalid amount value."]
+        ind_lower = raw_indicator.lower()
+        credit_lower = (indicator_credit or "").strip().lower()
+        debit_lower = (indicator_debit or "").strip().lower()
+        if credit_lower and ind_lower == credit_lower:
+            return abs(unsigned), []
+        elif debit_lower and ind_lower == debit_lower:
+            return -abs(unsigned), []
+        else:
+            return None, [f"Unknown indicator '{raw_indicator}'."]
+
+    elif amount_strategy == "split_columns":
+        raw_debit = str(mapped.get("debit", "") or "").strip()
+        raw_credit = str(mapped.get("credit", "") or "").strip()
+        has_debit = bool(raw_debit)
+        has_credit = bool(raw_credit)
+        if has_debit and has_credit:
+            return None, ["Both debit and credit populated."]
+        if not has_debit and not has_credit:
+            return None, ["Both debit and credit empty."]
+        try:
+            if has_debit:
+                return -abs(_parse_numeric(raw_debit)), []
+            else:
+                return abs(_parse_numeric(raw_credit)), []
+        except (InvalidOperation, ValueError):
+            return None, ["Invalid amount value."]
+
+    return None, ["Unknown amount strategy."]
 
 
 def import_stage(request):
@@ -25,6 +126,9 @@ def import_stage(request):
     upload = request.FILES.get("csv_file")
     account_id = request.POST.get("account_id")
     mapping_raw = request.POST.get("mapping", "{}")
+    amount_strategy = request.POST.get("amount_strategy", "signed")
+    indicator_credit = request.POST.get("indicator_credit_value", "").strip()
+    indicator_debit = request.POST.get("indicator_debit_value", "").strip()
 
     errors = []
     if not upload:
@@ -44,6 +148,16 @@ def import_stage(request):
         except Account.DoesNotExist:
             errors.append("Selected account is not available.")
 
+    if amount_strategy not in VALID_STRATEGIES:
+        errors.append("Invalid amount strategy.")
+        amount_strategy = "signed"
+
+    if amount_strategy == "indicator":
+        if not indicator_credit:
+            errors.append("Credit indicator value is required.")
+        if not indicator_debit:
+            errors.append("Debit indicator value is required.")
+
     try:
         mapping = json.loads(mapping_raw) if mapping_raw else {}
     except json.JSONDecodeError:
@@ -55,9 +169,8 @@ def import_stage(request):
             if value not in ALLOWED_MAP_VALUES:
                 errors.append("Invalid mapping option detected.")
                 break
-        values = list(mapping.values())
-        if values.count("date") != 1 or values.count("description") != 1 or values.count("amount") != 1:
-            errors.append("Mapping must include exactly one Date, Description, and Amount.")
+        mapping_errors = _validate_mapping(mapping, amount_strategy)
+        errors.extend(mapping_errors)
     else:
         errors.append("Column mapping is required.")
 
@@ -69,7 +182,14 @@ def import_stage(request):
             status=200,
         )
 
-    batch = ImportBatch.objects.create(filename=upload.name, account=account, status="pending")
+    batch = ImportBatch.objects.create(
+        filename=upload.name,
+        account=account,
+        status="pending",
+        amount_strategy=amount_strategy,
+        indicator_credit_value=indicator_credit,
+        indicator_debit_value=indicator_debit,
+    )
 
     file_text = upload.read().decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(file_text))
@@ -96,18 +216,18 @@ def import_stage(request):
             normalized_column = str(column).strip().lower()
             mapped[target] = normalized_row.get(normalized_column, "")
 
-        for required in REQUIRED_MAP_KEYS:
-            if not mapped.get(required):
-                row_error_list.append(f"Missing {required} value.")
+        # Date is always required
+        if not mapped.get("date"):
+            row_error_list.append("Missing date value.")
 
-        if mapped.get("amount"):
-            try:
-                raw_amount = mapped["amount"].replace(",", "").replace("$", "").strip()
-                if raw_amount.startswith("(") and raw_amount.endswith(")"):
-                    raw_amount = f"-{raw_amount[1:-1]}"
-                Decimal(raw_amount)
-            except (InvalidOperation, AttributeError):
-                row_error_list.append("Invalid amount value.")
+        # Normalize amount to signed_amount
+        signed_amount, amount_errors = _normalize_row_amount(
+            mapped, amount_strategy, indicator_credit, indicator_debit
+        )
+        row_error_list.extend(amount_errors)
+
+        if signed_amount is not None:
+            mapped["signed_amount"] = str(signed_amount)
 
         if row_error_list:
             row_errors += 1
@@ -165,11 +285,15 @@ def import_review(request, batch_id):
     page_obj = paginator.get_page(page_number)
 
     for row in page_obj.object_list:
-        raw_amount = str((row.mapped or {}).get("amount", "") or "").strip()
-        amount_display = raw_amount or "-"
+        mapped = row.mapped or {}
+        # Use signed_amount if available (new batches), fall back to amount (old batches)
+        raw_signed = str(mapped.get("signed_amount", "") or "").strip()
+        if not raw_signed:
+            raw_signed = str(mapped.get("amount", "") or "").strip()
+        amount_display = raw_signed or "-"
         amount_class = "text-slate-500"
-        if raw_amount:
-            cleaned = raw_amount.replace(",", "").replace("$", "").strip()
+        if raw_signed:
+            cleaned = raw_signed.replace(",", "").replace("$", "").strip()
             if cleaned.startswith("(") and cleaned.endswith(")"):
                 cleaned = f"-{cleaned[1:-1]}"
             try:
@@ -310,30 +434,33 @@ def import_commit(request, batch_id):
                 continue
         return None
 
-    def parse_amount_value(raw_value):
-        raw_value = (raw_value or "").strip().replace(",", "").replace("$", "")
-        if raw_value.startswith("(") and raw_value.endswith(")"):
-            raw_value = f"-{raw_value[1:-1]}"
-        return Decimal(raw_value)
-
     row_errors = 0
     validated = []
     for row in rows:
         mapped = row.mapped or {}
         errors = []
         raw_date = mapped.get("date", "")
-        raw_amount = mapped.get("amount", "")
         raw_description = mapped.get("description", "")
 
         parsed_date = parse_date_value(str(raw_date))
         if not parsed_date:
             errors.append("Invalid date value.")
 
-        try:
-            parsed_amount = parse_amount_value(str(raw_amount))
-        except (InvalidOperation, ValueError):
-            errors.append("Invalid amount value.")
-            parsed_amount = None
+        # Use signed_amount (new batches) or fall back to amount (old batches)
+        raw_signed = str(mapped.get("signed_amount", "") or "").strip()
+        if raw_signed:
+            try:
+                parsed_amount = Decimal(raw_signed)
+            except (InvalidOperation, ValueError):
+                errors.append("Invalid signed amount value.")
+                parsed_amount = None
+        else:
+            raw_amount = str(mapped.get("amount", "") or "").strip()
+            try:
+                parsed_amount = _parse_numeric(raw_amount)
+            except (InvalidOperation, ValueError):
+                errors.append("Invalid amount value.")
+                parsed_amount = None
 
         description = str(raw_description).strip()
 

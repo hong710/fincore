@@ -10,6 +10,12 @@ class ImportBatch(models.Model):
         ("failed", "Failed"),
     ]
 
+    AMOUNT_STRATEGY_CHOICES = [
+        ("signed", "Signed Amount"),
+        ("indicator", "Amount + Indicator"),
+        ("split_columns", "Debit / Credit Columns"),
+    ]
+
     uploaded_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="pending")
     filename = models.CharField(max_length=255)
@@ -20,6 +26,13 @@ class ImportBatch(models.Model):
         blank=True,
         related_name="import_batches",
     )
+    amount_strategy = models.CharField(
+        max_length=15,
+        choices=AMOUNT_STRATEGY_CHOICES,
+        default="signed",
+    )
+    indicator_credit_value = models.CharField(max_length=100, blank=True, default="")
+    indicator_debit_value = models.CharField(max_length=100, blank=True, default="")
     error_message = models.TextField(blank=True)
 
     class Meta:

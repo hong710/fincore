@@ -106,7 +106,21 @@
                 <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.date|date:"M j, Y" }}</td>
                 <td class="px-4 py-2 text-xs text-slate-700">{{ invoice.customer.name }}</td>
                 <td class="px-4 py-2 text-right text-xs text-slate-900">{{ invoice.total|floatformat:2|intcomma }}</td>
-                <td class="px-4 py-2 text-xs text-slate-600">{{ invoice.status|capfirst }}</td>
+                <td class="px-4 py-2">
+                  {% if invoice.status == 'paid' %}
+                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Paid</span>
+                  {% elif invoice.status == 'draft' %}
+                    <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">Draft</span>
+                  {% elif invoice.status == 'sent' %}
+                    <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">Sent</span>
+                  {% elif invoice.status == 'void' %}
+                    <span class="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">Void</span>
+                  {% elif invoice.status == 'partially_paid' %}
+                    <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">Partially Paid</span>
+                  {% else %}
+                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">{{ invoice.status|capfirst }}</span>
+                  {% endif %}
+                </td>
                 <td class="px-4 py-2 text-xs text-slate-700">{{ invoice.account.name }}</td>
                 <td class="px-4 py-2 text-right text-xs">
                   <button type="button" class="text-indigo-600 hover:text-indigo-700" @click="openMatch({{ invoice.id }})">Match</button>
