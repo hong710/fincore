@@ -12,7 +12,7 @@
 - Storybook (HTML + Vite) for component previews
 - Dockerfile + docker-compose (under `docker/`) for production-like runs (Gunicorn, Postgres)
 - Icons: Heroicons (SVG-only, served via Django static files and rendered via core UI components)
-
+- Chart.js + Alpine.js Chart.js renders chart  Alpine toggles: show/hide chart switch Monthly / Quarterly /Yearly /Custome date
 
 ## Quickstart
 1. Install Python 3.11+ and Node 18+.

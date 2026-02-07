@@ -8,6 +8,9 @@ from .vendor import Vendor
 from .invoice import Invoice
 from .invoice_item import InvoiceItem
 from .invoice_payment import InvoicePayment
+from .bill import Bill
+from .bill_item import BillItem
+from .bill_payment import BillPayment
 
 __all__ = [
     "Account",
@@ -20,4 +23,7 @@ __all__ = [
     "Invoice",
     "InvoiceItem",
     "InvoicePayment",
+    "Bill",
+    "BillItem",
+    "BillPayment",
 ]

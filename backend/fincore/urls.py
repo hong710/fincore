@@ -37,6 +37,15 @@ from .views.sales_views import (
     sales_invoice_payment_delete,
     sales_invoice_matches,
 )
+from .views.bill_views import (
+    bills_list,
+    bill_create,
+    bill_edit,
+    bill_detail,
+    bill_matches,
+    bill_match_apply,
+    bill_payment_delete,
+)
 from .views.import_views import (
     account_imports,
     import_commit,
@@ -76,6 +85,13 @@ urlpatterns = [
     path("sales/transactions/matches/", sales_invoice_matches, name="sales_invoice_matches"),
     path("sales/transactions/match/", sales_invoice_match_apply, name="sales_invoice_match_apply"),
     path("sales/transactions/payment/<int:payment_id>/delete/", sales_invoice_payment_delete, name="sales_invoice_payment_delete"),
+    path("bills/", bills_list, name="bills_list"),
+    path("bills/new/", bill_create, name="bill_create"),
+    path("bills/<int:bill_id>/edit/", bill_edit, name="bill_edit"),
+    path("bills/<int:bill_id>/", bill_detail, name="bill_detail"),
+    path("bills/matches/", bill_matches, name="bill_matches"),
+    path("bills/match/", bill_match_apply, name="bill_match_apply"),
+    path("bills/payment/<int:payment_id>/delete/", bill_payment_delete, name="bill_payment_delete"),
     path("categories/", category_list, name="category_list"),
     path("categories/table/", category_table, name="category_table"),
     path("categories/create/", category_create, name="category_create"),

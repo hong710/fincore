@@ -1,0 +1,155 @@
+{% extends "fincore/base.html" %}
+{% block title %}New Bill · Fincore{% endblock %}
+
+{% block content %}
+<div class="space-y-4 flex flex-col h-full">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-lg font-semibold text-slate-900">New Bill</h1>
+      <p class="text-sm text-slate-500">Create a vendor bill with line items.</p>
+      <p class="text-xs text-slate-500">Bill #: (assigned on save)</p>
+    </div>
+  </div>
+
+  {% if form_errors %}
+    <div class="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <ul class="list-disc pl-4">
+        {% for error in form_errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {{ item_rows|json_script:"bill-line-items" }}
+  <form method="post" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm space-y-4" x-data="billForm()">
+    {% csrf_token %}
+    <input type="hidden" name="item_count" :value="rows.length">
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Vendor (payee)</span>
+        <select name="vendor_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="">Select vendor</option>
+          {% for vendor in vendors %}
+            <option value="{{ vendor.id }}" {% if vendor.id|stringformat:'s' == request.POST.vendor_id %}selected{% endif %}>{{ vendor.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Account</span>
+        <select name="account_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="">Select account</option>
+          {% for account in accounts %}
+            <option value="{{ account.id }}" {% if account.id|stringformat:'s' == request.POST.account_id %}selected{% endif %}>{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Bill date</span>
+        <input type="date" name="date" value="{{ request.POST.date }}" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+      </label>
+    </div>
+
+    <div class="overflow-hidden rounded-lg border border-slate-200">
+      <table class="min-w-full text-sm text-slate-800">
+        <thead class="bg-slate-50 text-xs font-medium text-slate-700">
+          <tr>
+            <th class="px-3 py-2 text-left">Category</th>
+            <th class="px-3 py-2 text-left">Description</th>
+            <th class="px-3 py-2 text-right">Amount</th>
+            <th class="px-3 py-2 text-right">Line Total</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          <template x-for="(row, index) in rows" :key="index">
+            <tr class="hover:bg-slate-50">
+              <td class="px-3 py-2">
+                <select :name="`item_category_${index + 1}`" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="row.category_id">
+                  <option value="">Select category</option>
+                  {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td class="px-3 py-2">
+                <input type="text" :name="`item_description_${index + 1}`" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional" x-model="row.description">
+              </td>
+              <td class="px-3 py-2 text-right">
+                <input type="number" step="0.01" :name="`item_amount_${index + 1}`" class="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="0.00" x-model="row.amount">
+              </td>
+              <td class="px-3 py-2 text-right">
+                <div class="flex items-center justify-end gap-2">
+                  <span class="text-xs text-slate-700" x-text="formatMoney(rowTotal(row))"></span>
+                  <button type="button" class="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100" @click="removeRow(index)" :disabled="rows.length === 1">Remove</button>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center justify-between">
+      <p class="text-xs text-slate-500">Totals are calculated on save. Amounts can be negative for adjustments.</p>
+      <button type="button" class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50" @click="addRow()">+ Add Line Item</button>
+    </div>
+
+    <div class="flex justify-end">
+      <div class="w-full max-w-xs space-y-2 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <div class="flex items-center justify-between font-semibold text-slate-900">
+          <span>Grand Total</span>
+          <span x-text="formatMoney(grandTotal())"></span>
+        </div>
+      </div>
+    </div>
+
+    <label class="space-y-1 text-xs font-medium text-slate-600">
+      <span>Notes</span>
+      <textarea name="notes" rows="3" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional">{{ request.POST.notes }}</textarea>
+    </label>
+
+    <div class="flex items-center justify-end gap-2">
+      <a href="{% url 'fincore:bills_list' %}" class="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Cancel</a>
+      <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Save Bill</button>
+    </div>
+  </form>
+</div>
+<script>
+  function billForm() {
+    const rows = JSON.parse(
+      document.getElementById("bill-line-items").textContent
+    );
+    return {
+      rows: rows.length ? rows : [{ category_id: "", description: "", amount: "" }],
+      addRow() {
+        this.rows.push({ category_id: "", description: "", amount: "" });
+      },
+      removeRow(index) {
+        if (this.rows.length <= 1) return;
+        this.rows.splice(index, 1);
+      },
+      parseAmount(value) {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : 0;
+      },
+      rowTotal(row) {
+        return this.parseAmount(row.amount);
+      },
+      grandTotal() {
+        return this.rows.reduce(
+          (sum, row) => sum + this.parseAmount(row.amount),
+          0
+        );
+      },
+      formatMoney(value) {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return "0.00";
+        return num.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      },
+    };
+  }
+</script>
+{% endblock %}
