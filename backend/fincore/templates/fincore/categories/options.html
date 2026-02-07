@@ -1,0 +1,11 @@
+{% if include_placeholder %}
+  <option value="">{{ placeholder }}</option>
+{% endif %}
+{% regroup categories by kind as grouped_categories %}
+{% for group in grouped_categories %}
+  <optgroup label="{{ group.grouper|upper }}">
+    {% for category in group.list %}
+      <option value="{{ category.id }}" {% if selected_id|default:'' == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+    {% endfor %}
+  </optgroup>
+{% endfor %}

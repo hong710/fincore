@@ -7,6 +7,25 @@ from django.urls import reverse
 from fincore.models import Category, Transaction
 
 
+def category_options(request):
+    categories = (
+        Category.objects.filter(is_active=True)
+        .exclude(kind__in=["transfer", "opening", "withdraw", "equity", "liability"])
+        .order_by("kind", "name")
+    )
+    selected_id = (request.GET.get("selected_id") or "").strip()
+    return render(
+        request,
+        "fincore/categories/options.html",
+        {
+            "categories": categories,
+            "selected_id": selected_id,
+            "include_placeholder": True,
+            "placeholder": "Select category",
+        },
+    )
+
+
 def category_list(request):
     parent_options = list(
         Category.objects.filter(parent__isnull=True).order_by("kind", "name")

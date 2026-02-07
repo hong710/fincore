@@ -57,7 +57,7 @@
         <select name="account_id" autocomplete="off" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" onchange="this.form.submit()">
           <option value="" {% if not account_id %}selected data-server-selected{% endif %}>All accounts</option>
           {% for account in accounts %}
-            <option value="{{ account.id }}" {% if account_id == account.id %}selected data-server-selected{% endif %}>{{ account.name }}</option>
+            <option value="{{ account.id }}" {% if account_id == account.id %}selected data-server-selected{% endif %}>{% if account.parent_id %}• {% endif %}{{ account.name }}</option>
           {% endfor %}
         </select>
       </label>

@@ -118,6 +118,19 @@ Root cause
 Fix
 - Added second query for `Transaction.objects.filter(kind="income", category__isnull=False).exclude(invoice_payments__isnull=False)` in income section.
 - Merged Transaction-based income data with InvoiceItem-based income data into same `data_rows` dict.
+
+## Cash Flow: Parent/Child Expandable Categories
+
+Symptoms
+- Cash Flow detailed view listed flat categories without parent grouping.
+
+Fix
+- Grouped Operating, Investing, and Financing rows by parent category (same as P&L).
+- Added expand/collapse UI in the cash flow report table.
+
+Location
+- `backend/fincore/views/transaction_views.py` (`_cashflow_context`)
+- `backend/fincore/templates/fincore/reports/cashflow_content.html`
 - Applied same filters (account, vendor, category, date range) and period grouping to both queries.
 - Prevented double-counting by excluding transactions that have invoice payments (already captured via InvoiceItems).
 

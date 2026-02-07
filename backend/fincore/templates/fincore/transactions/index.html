@@ -114,7 +114,17 @@
           </label>
         <label class="space-y-1 text-xs font-medium text-slate-600">
           <span>Category</span>
-          <select name="category_id" x-model="editForm.category_id" :disabled="editForm.transfer_group_id || editForm.is_locked" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <select
+            name="category_id"
+            x-model="editForm.category_id"
+            :disabled="editForm.transfer_group_id || editForm.is_locked"
+            class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+            hx-get="{% url 'fincore:category_options' %}"
+            hx-trigger="categories:refresh from:body"
+            hx-target="this"
+            hx-swap="innerHTML"
+            hx-vals="js:{selected_id: this.value}"
+          >
             <option value="">Select category</option>
             {% for category in categories %}
               <option value="{{ category.id }}">{{ category.name }} ({{ category.kind }})</option>
@@ -242,13 +252,21 @@
             <select id="new-transaction-account" name="account_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
               <option value="">Choose account</option>
               {% for acct in accounts %}
-                <option value="{{ acct.id }}">{{ acct.name }} ({{ acct.account_type }})</option>
+                <option value="{{ acct.id }}">{% if acct.parent_id %}• {% endif %}{{ acct.name }} ({{ acct.account_type }})</option>
               {% endfor %}
             </select>
           </label>
           <label class="space-y-1 text-xs font-medium text-slate-600">
             <span>Category</span>
-            <select name="category_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+            <select
+              name="category_id"
+              class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
+              hx-get="{% url 'fincore:category_options' %}"
+              hx-trigger="categories:refresh from:body"
+              hx-target="this"
+              hx-swap="innerHTML"
+              hx-vals="js:{selected_id: this.value}"
+            >
               <option value="">Select category</option>
               {% for category in categories %}
                 <option value="{{ category.id }}">{{ category.name }} ({{ category.kind }})</option>

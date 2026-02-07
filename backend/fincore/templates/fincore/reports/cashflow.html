@@ -1,76 +1,39 @@
 {% extends "fincore/base.html" %}
-{% block title %}Profit & Loss · Fincore{% endblock %}
+{% block title %}Cash Flow · Fincore{% endblock %}
 
 {% block content %}
-<style>
-  @media print {
-    .pl-report-controls {
-      display: none !important;
-    }
-    header,
-    aside,
-    footer {
-      display: none !important;
-    }
-    body {
-      background: white !important;
-    }
-    section {
-      height: auto !important;
-      min-height: auto !important;
-      overflow: visible !important;
-    }
-    main {
-      padding: 0 !important;
-      overflow: visible !important;
-    }
-    .pl-report-scroll {
-      overflow: visible !important;
-      max-height: none !important;
-    }
-    .pl-report-container {
-      height: auto !important;
-    }
-    .pl-report-footer {
-      position: static !important;
-    }
-  }
-</style>
 <div class="space-y-4 flex flex-col h-full">
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-lg font-semibold text-slate-900">Profit &amp; Loss</h1>
-      <p class="text-sm text-slate-500">Summary across all accounts (income, COGS, and expenses).</p>
+      <h1 class="text-lg font-semibold text-slate-900">Cash Flow</h1>
+      <p class="text-sm text-slate-500">Operating, investing, and financing activity.</p>
     </div>
-    <div class="flex items-center gap-2 pl-report-controls">
+    <div class="flex items-center gap-2">
       <a
-        href="{% url 'fincore:profit_loss_export_xlsx' %}{% if query_string %}?{{ query_string }}{% endif %}"
-        class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        href="{% url 'fincore:cashflow_report' %}?{% if query_string %}{{ query_string }}&{% endif %}view=detailed"
+        class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium {% if view_mode == 'detailed' %}border-indigo-600 bg-indigo-50 text-indigo-700{% else %}border-slate-200 text-slate-700 hover:bg-slate-50{% endif %}"
       >
-        Export Excel
+        Detailed
       </a>
-      <button
-        type="button"
-        class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-        onclick="window.print()"
+      <a
+        href="{% url 'fincore:cashflow_report' %}?{% if query_string %}{{ query_string }}&{% endif %}view=summary"
+        class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium {% if view_mode == 'summary' %}border-indigo-600 bg-indigo-50 text-indigo-700{% else %}border-slate-200 text-slate-700 hover:bg-slate-50{% endif %}"
       >
-        Print
-      </button>
+        Summary
+      </a>
     </div>
   </div>
 
-  <!-- Filter Form -->
   <form
-    class="pl-report-controls rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
-    id="pl-form"
-    hx-get="{% url 'fincore:profit_loss_content' %}"
-    hx-target="#pl-content"
+    class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+    id="cf-form"
+    hx-get="{% url 'fincore:cashflow_content' %}"
+    hx-target="#cf-content"
     hx-swap="innerHTML"
     hx-push-url="true"
     hx-trigger="change delay:200ms"
   >
     <div class="flex flex-wrap items-end gap-4" x-data="{ range: '{{ filters.date_range }}' }">
-      <!-- Report Period -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Report period</span>
         <select
@@ -84,7 +47,6 @@
         </select>
       </label>
 
-      <!-- Custom Date Range (hidden by default) -->
       <label class="space-y-1 text-xs font-medium text-slate-600" x-show="range === 'custom'">
         <span>From</span>
         <input
@@ -106,7 +68,6 @@
         >
       </label>
 
-      <!-- Account -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Account</span>
         <select
@@ -120,20 +81,6 @@
         </select>
       </label>
 
-      <!-- Display Columns By -->
-      <label class="space-y-1 text-xs font-medium text-slate-600">
-        <span>Display columns by</span>
-        <select
-          name="display_by"
-          class="w-48 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500"
-        >
-          {% for value, label in display_by_options %}
-            <option value="{{ value }}" {% if filters.display_by == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-
-      <!-- Vendor -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Vendor</span>
         <select
@@ -147,7 +94,6 @@
         </select>
       </label>
 
-      <!-- Category -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Category</span>
         <select
@@ -161,7 +107,6 @@
         </select>
       </label>
 
-      <!-- Type -->
       <label class="space-y-1 text-xs font-medium text-slate-600">
         <span>Type</span>
         <select
@@ -170,15 +115,19 @@
         >
           <option value="all" {% if filters.kind == 'all' %}selected{% endif %}>All</option>
           <option value="income" {% if filters.kind == 'income' %}selected{% endif %}>Income</option>
-          <option value="cogs" {% if filters.kind == 'cogs' %}selected{% endif %}>COGS</option>
           <option value="expense" {% if filters.kind == 'expense' %}selected{% endif %}>Expense</option>
           <option value="payroll" {% if filters.kind == 'payroll' %}selected{% endif %}>Payroll</option>
+          <option value="cogs" {% if filters.kind == 'cogs' %}selected{% endif %}>COGS</option>
+          <option value="withdraw" {% if filters.kind == 'withdraw' %}selected{% endif %}>Withdraw</option>
+          <option value="equity" {% if filters.kind == 'equity' %}selected{% endif %}>Equity</option>
+          <option value="liability" {% if filters.kind == 'liability' %}selected{% endif %}>Liability</option>
         </select>
       </label>
 
-      <!-- Clear Button -->
+      <input type="hidden" name="view" value="{{ filters.view }}">
+
       <a
-        href="{% url 'fincore:profit_loss_report' %}"
+        href="{% url 'fincore:cashflow_report' %}"
         class="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
       >
         Clear Filters
@@ -186,12 +135,11 @@
     </div>
   </form>
 
-  <!-- Content Section (HTMX target) -->
   <div
-    id="pl-content"
+    id="cf-content"
     class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex-1 min-h-0"
   >
-    {% include "fincore/reports/profit_loss_content.html" %}
+    {% include "fincore/reports/cashflow_content.html" %}
   </div>
 </div>
 {% endblock %}

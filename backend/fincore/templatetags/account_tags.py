@@ -26,6 +26,7 @@ def account_actions(account):
         "account_type": account.account_type,
         "institution": account.institution or "",
         "notes": account.description or "",
+        "parent_id": account.parent_id,
         "is_active": bool(account.is_active),
     }
     delete_payload = {"id": account.id, "name": account.name}

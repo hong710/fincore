@@ -8,10 +8,10 @@
     createOpen: false,
     editOpen: false,
     deleteOpen: false,
-    editForm: { id: null, name: '', account_type: 'checking', institution: '', notes: '', is_active: true },
+    editForm: { id: null, name: '', account_type: 'checking', institution: '', notes: '', parent_id: '', is_active: true },
     deleteTarget: { id: null, name: '' },
     openEdit(data) {
-      this.editForm = { ...data };
+      this.editForm = { ...data, parent_id: data.parent_id ? String(data.parent_id) : '' };
       this.editOpen = true;
       this.$nextTick(() => { if (this.$refs.editErrors) this.$refs.editErrors.textContent = ''; });
     },
@@ -39,7 +39,39 @@
     </div>
   </div>
 
-  <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]" id="accounts-table" hx-get="{% url 'fincore:account_table' %}" hx-trigger="load,accounts:refresh from:body"></div>
+  <form id="accounts-filters" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" hx-get="{% url 'fincore:account_table' %}" hx-target="#accounts-table" hx-trigger="change">
+    <div class="flex flex-wrap items-end gap-4">
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Type</span>
+        <select name="account_type" class="w-56 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="">All types</option>
+          {% for value, label in account_types %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="space-y-1 text-xs font-medium text-slate-600">
+        <span>Status</span>
+        <select name="status" class="w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="all">All</option>
+        </select>
+      </label>
+      <button type="button" class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50" @click="document.body.dispatchEvent(new CustomEvent('accounts:refresh'))">
+        Refresh
+      </button>
+    </div>
+  </form>
+
+  <div
+    class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-[calc(100vh-220px)]"
+    id="accounts-table"
+    hx-get="{% url 'fincore:account_table' %}"
+    hx-trigger="load,accounts:refresh from:body"
+    hx-include="#accounts-filters"
+    hx-params="*"
+  ></div>
 
   <!-- Create account modal -->
   <div
@@ -83,6 +115,15 @@
             <div class="space-y-1">
               <label for="acct-inst" class="text-sm font-medium text-slate-700">Institution (optional)</label>
               <input name="institution" id="acct-inst" type="text" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Bank or provider name">
+            </div>
+            <div class="space-y-1">
+              <label for="acct-parent" class="text-sm font-medium text-slate-700">Parent (optional)</label>
+              <select name="parent_id" id="acct-parent" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">No parent</option>
+                {% for parent in parent_options %}
+                  <option value="{{ parent.id }}">{{ parent.name }}</option>
+                {% endfor %}
+              </select>
             </div>
           </div>
           <div class="space-y-1">
@@ -146,6 +187,15 @@
             <div class="space-y-1">
               <label for="acct-edit-inst" class="text-sm font-medium text-slate-700">Institution (optional)</label>
               <input name="institution" id="acct-edit-inst" type="text" x-model="editForm.institution" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Bank or provider name">
+            </div>
+            <div class="space-y-1">
+              <label for="acct-edit-parent" class="text-sm font-medium text-slate-700">Parent (optional)</label>
+              <select name="parent_id" id="acct-edit-parent" x-model="editForm.parent_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">No parent</option>
+                {% for parent in parent_options %}
+                  <option value="{{ parent.id }}">{{ parent.name }}</option>
+                {% endfor %}
+              </select>
             </div>
           </div>
           <div class="space-y-1">

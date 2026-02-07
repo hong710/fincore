@@ -1,0 +1,210 @@
+{% load formatting %}
+<div class="flex flex-col h-full" x-data="{ openOperating: true, openInvesting: true, openFinancing: true, openParents: {} }">
+  <div class="flex-1 overflow-auto min-h-0">
+    <table class="min-w-full table-auto text-sm text-slate-800">
+      <colgroup>
+        <col class="w-auto">
+        <col class="w-48">
+      </colgroup>
+      <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+        <tr>
+          <th class="py-2 px-4 text-left">Category</th>
+          <th class="py-2 px-4 text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200">
+        <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          <td class="px-4 py-2" colspan="2">Operating Activities</td>
+        </tr>
+        {% if view_mode == "summary" %}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2 text-sm text-slate-700">Net cash from operating</td>
+            <td class="px-4 py-2 text-right text-sm {% if operating_total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ operating_total|currency }}
+            </td>
+          </tr>
+        {% else %}
+          {% if operating_groups %}
+            {% for group in operating_groups %}
+              <tr class="hover:bg-slate-50" x-show="openOperating">
+                <td class="px-4 py-2 pl-6 text-sm text-slate-700">
+                  <div class="inline-flex items-center gap-2">
+                    {% if group.has_children %}
+                      <button type="button" class="inline-flex w-4 justify-center text-slate-500" @click="openParents['op-{{ group.parent_id }}'] = !openParents['op-{{ group.parent_id }}']" x-text="openParents['op-{{ group.parent_id }}'] ? '▾' : '▸'"></button>
+                    {% else %}
+                      <span class="inline-flex w-4 justify-center text-slate-300">•</span>
+                    {% endif %}
+                    {% if group.has_children %}
+                      <span class="text-slate-900 font-semibold">{{ group.parent_name }}</span>
+                    {% else %}
+                      <span class="text-slate-900 font-semibold">{{ group.parent_name }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="px-4 py-2 text-right text-sm font-semibold {% if group.total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                  <span x-show="!openParents['op-{{ group.parent_id }}']">
+                    {{ group.total|currency }}
+                  </span>
+                </td>
+              </tr>
+              {% if group.has_children %}
+                {% for row in group.rows %}
+                  {% if row.category_id != group.parent_category_id %}
+                    <tr class="hover:bg-slate-50" x-show="openOperating && openParents['op-{{ group.parent_id }}']">
+                      <td class="px-4 py-2 pl-16 text-sm text-slate-700">
+                        <div class="inline-flex items-center gap-2">
+                          <span class="inline-flex w-4 justify-center text-slate-300">•</span>
+                          <span>{{ row.name }}</span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-2 text-right text-sm {% if row.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                        {{ row.amount|currency }}
+                      </td>
+                    </tr>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td class="px-4 py-2 text-sm text-slate-400" colspan="2">—</td>
+            </tr>
+          {% endif %}
+          <tr class="bg-slate-50 font-semibold">
+            <td class="px-4 py-2 text-slate-700">Net cash from operating</td>
+            <td class="px-4 py-2 text-right {% if operating_total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ operating_total|currency }}
+            </td>
+          </tr>
+        {% endif %}
+
+        <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          <td class="px-4 py-2" colspan="2">Investing Activities</td>
+        </tr>
+        {% if view_mode == "summary" %}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2 text-sm text-slate-700">Net cash from investing</td>
+            <td class="px-4 py-2 text-right text-sm {% if investing_total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ investing_total|currency }}
+            </td>
+          </tr>
+        {% else %}
+          {% if investing_groups %}
+            {% for group in investing_groups %}
+              <tr class="hover:bg-slate-50" x-show="openInvesting">
+                <td class="px-4 py-2 pl-6 text-sm text-slate-700">
+                  <div class="inline-flex items-center gap-2">
+                    {% if group.has_children %}
+                      <button type="button" class="inline-flex w-4 justify-center text-slate-500" @click="openParents['inv-{{ group.parent_id }}'] = !openParents['inv-{{ group.parent_id }}']" x-text="openParents['inv-{{ group.parent_id }}'] ? '▾' : '▸'"></button>
+                    {% else %}
+                      <span class="inline-flex w-4 justify-center text-slate-300">•</span>
+                    {% endif %}
+                    <span class="text-slate-900 font-semibold">{{ group.parent_name }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-2 text-right text-sm font-semibold {% if group.total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                  <span x-show="!openParents['inv-{{ group.parent_id }}']">
+                    {{ group.total|currency }}
+                  </span>
+                </td>
+              </tr>
+              {% if group.has_children %}
+                {% for row in group.rows %}
+                  {% if row.category_id != group.parent_category_id %}
+                    <tr class="hover:bg-slate-50" x-show="openInvesting && openParents['inv-{{ group.parent_id }}']">
+                      <td class="px-4 py-2 pl-16 text-sm text-slate-700">
+                        <div class="inline-flex items-center gap-2">
+                          <span class="inline-flex w-4 justify-center text-slate-300">•</span>
+                          <span>{{ row.name }}</span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-2 text-right text-sm {% if row.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                        {{ row.amount|currency }}
+                      </td>
+                    </tr>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td class="px-4 py-2 text-sm text-slate-400" colspan="2">—</td>
+            </tr>
+          {% endif %}
+          <tr class="bg-slate-50 font-semibold">
+            <td class="px-4 py-2 text-slate-700">Net cash from investing</td>
+            <td class="px-4 py-2 text-right {% if investing_total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ investing_total|currency }}
+            </td>
+          </tr>
+        {% endif %}
+
+        <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          <td class="px-4 py-2" colspan="2">Financing Activities</td>
+        </tr>
+        {% if view_mode == "summary" %}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2 text-sm text-slate-700">Net cash from financing</td>
+            <td class="px-4 py-2 text-right text-sm {% if financing_total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ financing_total|currency }}
+            </td>
+          </tr>
+        {% else %}
+          {% if financing_groups %}
+            {% for group in financing_groups %}
+              <tr class="hover:bg-slate-50" x-show="openFinancing">
+                <td class="px-4 py-2 pl-6 text-sm text-slate-700">
+                  <div class="inline-flex items-center gap-2">
+                    {% if group.has_children %}
+                      <button type="button" class="inline-flex w-4 justify-center text-slate-500" @click="openParents['fin-{{ group.parent_id }}'] = !openParents['fin-{{ group.parent_id }}']" x-text="openParents['fin-{{ group.parent_id }}'] ? '▾' : '▸'"></button>
+                    {% else %}
+                      <span class="inline-flex w-4 justify-center text-slate-300">•</span>
+                    {% endif %}
+                    <span class="text-slate-900 font-semibold">{{ group.parent_name }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-2 text-right text-sm font-semibold {% if group.total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                  <span x-show="!openParents['fin-{{ group.parent_id }}']">
+                    {{ group.total|currency }}
+                  </span>
+                </td>
+              </tr>
+              {% if group.has_children %}
+                {% for row in group.rows %}
+                  {% if row.category_id != group.parent_category_id %}
+                    <tr class="hover:bg-slate-50" x-show="openFinancing && openParents['fin-{{ group.parent_id }}']">
+                      <td class="px-4 py-2 pl-16 text-sm text-slate-700">
+                        <div class="inline-flex items-center gap-2">
+                          <span class="inline-flex w-4 justify-center text-slate-300">•</span>
+                          <span>{{ row.name }}</span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-2 text-right text-sm {% if row.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                        {{ row.amount|currency }}
+                      </td>
+                    </tr>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td class="px-4 py-2 text-sm text-slate-400" colspan="2">—</td>
+            </tr>
+          {% endif %}
+          <tr class="bg-slate-50 font-semibold">
+            <td class="px-4 py-2 text-slate-700">Net cash from financing</td>
+            <td class="px-4 py-2 text-right {% if financing_total < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ financing_total|currency }}
+            </td>
+          </tr>
+        {% endif %}
+
+        <tr class="bg-indigo-50 font-semibold">
+          <td class="px-4 py-2 text-slate-900">Net change in cash</td>
+          <td class="px-4 py-2 text-right text-slate-900">{{ net_change|currency }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

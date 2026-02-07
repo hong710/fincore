@@ -43,7 +43,7 @@
         <select name="account_id" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
           <option value="">Select account</option>
           {% for account in accounts %}
-            <option value="{{ account.id }}" {% if account.id == bill.account_id %}selected{% endif %}>{{ account.name }}</option>
+            <option value="{{ account.id }}" {% if account.id == bill.account_id %}selected{% endif %}>{% if account.parent_id %}• {% endif %}{{ account.name }}</option>
           {% endfor %}
         </select>
       </label>

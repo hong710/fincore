@@ -1,0 +1,110 @@
+{% load formatting %}
+<div class="flex flex-col h-full">
+  <div class="flex-1 overflow-auto min-h-0">
+    <table class="min-w-full table-auto text-sm text-slate-800">
+      <colgroup>
+        <col class="w-auto">
+        <col class="w-48">
+      </colgroup>
+      <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
+        <tr>
+          <th class="py-2 px-4 text-left">Category</th>
+          <th class="py-2 px-4 text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200">
+        <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          <td class="px-4 py-2" colspan="2">Assets</td>
+        </tr>
+        {% if assets_rows %}
+          {% for row in assets_rows %}
+            {% if row.row_type == "parent" %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2 text-sm font-semibold text-slate-800">{{ row.name }}</td>
+                <td class="px-4 py-2 text-right text-sm font-semibold {% if row.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                  {{ row.amount|currency }}
+                </td>
+              </tr>
+            {% elif row.row_type == "child" %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2 text-sm text-slate-700">
+                  <span class="inline-flex items-center gap-2 pl-4">
+                    <span class="inline-block h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                    <span>{{ row.name }}</span>
+                  </span>
+                </td>
+                <td class="px-4 py-2 text-right text-sm {% if row.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                  {{ row.amount|currency }}
+                </td>
+              </tr>
+            {% else %}
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-2 text-sm text-slate-700">{{ row.name }}</td>
+                <td class="px-4 py-2 text-right text-sm {% if row.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                  {{ row.amount|currency }}
+                </td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="px-4 py-2 text-sm text-slate-400" colspan="2">—</td>
+          </tr>
+        {% endif %}
+        <tr class="bg-slate-50 font-semibold">
+          <td class="px-4 py-2 text-slate-700">Total Assets</td>
+          <td class="px-4 py-2 text-right text-emerald-600">{{ assets_total|currency }}</td>
+        </tr>
+
+        <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          <td class="px-4 py-2" colspan="2">Liabilities</td>
+        </tr>
+        {% if liability_rows %}
+          {% for row in liability_rows %}
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-2 text-sm text-slate-700">{{ row.name }}</td>
+              <td class="px-4 py-2 text-right text-sm text-rose-600">
+                {{ row.amount|currency }}
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="px-4 py-2 text-sm text-slate-400" colspan="2">—</td>
+          </tr>
+        {% endif %}
+        <tr class="bg-slate-50 font-semibold">
+          <td class="px-4 py-2 text-slate-700">Total Liabilities</td>
+          <td class="px-4 py-2 text-right text-rose-600">{{ liability_total|currency }}</td>
+        </tr>
+
+        <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          <td class="px-4 py-2" colspan="2">Equity</td>
+        </tr>
+        {% if equity_rows %}
+          {% for row in equity_rows %}
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-2 text-sm text-slate-700">{{ row.name }}</td>
+              <td class="px-4 py-2 text-right text-sm text-slate-700">
+                {{ row.amount|currency }}
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="px-4 py-2 text-sm text-slate-400" colspan="2">—</td>
+          </tr>
+        {% endif %}
+        <tr class="bg-slate-50 font-semibold">
+          <td class="px-4 py-2 text-slate-700">Total Equity</td>
+          <td class="px-4 py-2 text-right text-slate-700">{{ equity_total|currency }}</td>
+        </tr>
+
+        <tr class="bg-indigo-50 font-semibold">
+          <td class="px-4 py-2 text-slate-900">Total Liabilities &amp; Equity</td>
+          <td class="px-4 py-2 text-right text-slate-900">{{ total_liabilities_equity|currency }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

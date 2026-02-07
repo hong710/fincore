@@ -18,7 +18,18 @@ from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.http import HttpResponse
-from fincore.models import Account, BillItem, Category, InvoiceItem, Transaction, TransferGroup, Vendor
+from fincore.models import (
+    Account,
+    Bill,
+    BillItem,
+    Category,
+    Invoice,
+    InvoiceItem,
+    Transaction,
+    TransferGroup,
+    Vendor,
+)
+from fincore.views.utils import selectable_accounts
 
 
 def _render_transfer_list(request, category=None):
@@ -36,7 +47,11 @@ def _render_transfer_list(request, category=None):
     vendors = list(
         Vendor.objects.filter(is_active=True, kind=vendor_kind).order_by("name")
     )
-    accounts = list(Account.objects.filter(is_active=True).order_by("name"))
+    all_accounts = list(Account.objects.filter(is_active=True).select_related("parent").order_by("name"))
+    all_accounts = list(
+        Account.objects.filter(is_active=True).select_related("parent").order_by("name")
+    )
+    accounts = list(selectable_accounts())
     vendor_ids = {v.id for v in vendors}
     account_ids = {a.id for a in accounts}
 
@@ -351,7 +366,7 @@ def category_report(request, pk):
 
     # Get filter lists
     vendors = list(Vendor.objects.filter(is_active=True).order_by("name"))
-    accounts = list(Account.objects.filter(is_active=True).order_by("name"))
+    accounts = list(selectable_accounts())
     vendor_ids = {v.id for v in vendors}
     account_ids = {a.id for a in accounts}
 
@@ -908,7 +923,7 @@ def _profit_loss_context(request):
     payroll_groups = group_rows_by_parent(payroll_rows)
     expense_groups = group_rows_by_parent(expense_rows)
 
-    accounts = Account.objects.filter(is_active=True).order_by("name")
+    accounts = selectable_accounts()
     vendors = Vendor.objects.filter(is_active=True).order_by("name")
     categories = Category.objects.filter(is_active=True, kind__in=pnl_kinds).order_by(
         "kind", "name"
@@ -971,9 +986,310 @@ def _profit_loss_context(request):
     }
 
 
+def _balance_sheet_context(request):
+    date_range = (request.GET.get("date_range") or "this_year").strip()
+    date_from = (request.GET.get("date_from") or "").strip()
+    date_to = (request.GET.get("date_to") or "").strip()
+    account_id = (request.GET.get("account_id") or "").strip()
+    category_id = (request.GET.get("category_id") or "").strip()
+    kind = (request.GET.get("kind") or "all").strip()
+
+    date_range, _start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
+    if not end_date:
+        _start_date, end_date = _default_date_bounds(date_range)
+    as_of_date = end_date or date.today()
+
+    account_id = account_id if account_id.isdigit() else ""
+    category_id = category_id if category_id.isdigit() else ""
+
+    accounts = list(selectable_accounts())
+    categories = list(
+        Category.objects.filter(is_active=True, kind__in=["liability", "equity"]).order_by("name")
+    )
+
+    account_id_int = int(account_id) if account_id.isdigit() else None
+    balances = (
+        Transaction.objects.filter(date__lte=as_of_date)
+        .values("account_id")
+        .annotate(total=Sum("amount"))
+    )
+    balance_map = {row["account_id"]: row["total"] or Decimal("0.00") for row in balances}
+    for account in all_accounts:
+        account.balance = balance_map.get(account.id, Decimal("0.00"))
+
+    children_by_parent = {}
+    for account in all_accounts:
+        if account.parent_id:
+            children_by_parent.setdefault(account.parent_id, []).append(account)
+
+    assets_rows = []
+    if account_id_int:
+        selected = next((a for a in all_accounts if a.id == account_id_int), None)
+        if selected:
+            assets_rows.append({"row_type": "single", "name": selected.name, "amount": selected.balance})
+    else:
+        parents = [a for a in all_accounts if a.parent_id is None]
+        for parent in parents:
+            children = sorted(children_by_parent.get(parent.id, []), key=lambda c: c.name.lower())
+            if children:
+                parent_total = sum((child.balance for child in children), Decimal("0.00"))
+                assets_rows.append({"row_type": "parent", "name": parent.name, "amount": parent_total, "parent_id": parent.id})
+                for child in children:
+                    assets_rows.append({"row_type": "child", "name": child.name, "amount": child.balance, "parent_id": parent.id})
+            else:
+                assets_rows.append({"row_type": "single", "name": parent.name, "amount": parent.balance})
+
+    leaf_accounts = [a for a in all_accounts if not children_by_parent.get(a.id)]
+    assets_total = sum((a.balance for a in leaf_accounts), Decimal("0.00"))
+
+    def _category_totals(kind_value):
+        qs = Transaction.objects.select_related("category").filter(
+            category__kind=kind_value, date__lte=as_of_date
+        )
+        if account_id:
+            qs = qs.filter(account_id=int(account_id))
+        if category_id:
+            qs = qs.filter(category_id=int(category_id))
+        grouped = qs.values("category_id", "category__name").annotate(total=Sum("amount"))
+        rows = []
+        total = Decimal("0.00")
+        for row in grouped:
+            value = row["total"] or Decimal("0.00")
+            rows.append({"name": row["category__name"], "amount": abs(value)})
+            total += abs(value)
+        rows.sort(key=lambda r: r["name"])
+        return rows, total
+
+    liability_rows, liability_total = _category_totals("liability")
+    equity_rows, equity_total = _category_totals("equity")
+
+    filters = {
+        "date_range": date_range,
+        "date_from": date_from,
+        "date_to": date_to,
+        "account_id": account_id,
+        "category_id": category_id,
+        "kind": kind if kind in {"all", "assets", "liability", "equity"} else "all",
+    }
+
+    return {
+        "filters": filters,
+        "report_ranges": REPORT_RANGE_OPTIONS,
+        "as_of_date": as_of_date,
+        "accounts": accounts,
+        "categories": categories,
+        "assets_rows": assets_rows,
+        "assets_total": assets_total,
+        "liability_rows": liability_rows,
+        "liability_total": liability_total,
+        "equity_rows": equity_rows,
+        "equity_total": equity_total,
+        "total_liabilities_equity": liability_total + equity_total,
+    }
+
+
+def _cashflow_context(request):
+    date_range = (request.GET.get("date_range") or "this_year").strip()
+    date_from = (request.GET.get("date_from") or "").strip()
+    date_to = (request.GET.get("date_to") or "").strip()
+    account_id = (request.GET.get("account_id") or "").strip()
+    vendor_id = (request.GET.get("vendor_id") or "").strip()
+    category_id = (request.GET.get("category_id") or "").strip()
+    kind = (request.GET.get("kind") or "all").strip()
+    view_mode = (request.GET.get("view") or "detailed").strip()
+
+    date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
+    if not start_date or not end_date:
+        start_date, end_date = _default_date_bounds(date_range)
+
+    account_id = account_id if account_id.isdigit() else ""
+    vendor_id = vendor_id if vendor_id.isdigit() else ""
+    category_id = category_id if category_id.isdigit() else ""
+
+    accounts = list(selectable_accounts())
+    vendors = list(Vendor.objects.filter(is_active=True).order_by("name"))
+    categories = list(Category.objects.filter(is_active=True).order_by("name"))
+
+    base_qs = (
+        Transaction.objects.select_related("category", "account", "vendor")
+        .filter(date__gte=start_date, date__lte=end_date)
+        .exclude(kind__in=["transfer", "opening"])
+    )
+    if account_id:
+        base_qs = base_qs.filter(account_id=int(account_id))
+    if vendor_id:
+        base_qs = base_qs.filter(vendor_id=int(vendor_id))
+    if category_id:
+        base_qs = base_qs.filter(category_id=int(category_id))
+
+    if kind != "all":
+        base_qs = base_qs.filter(kind=kind)
+
+    def _group_by_kind(kind_values):
+        grouped = (
+            base_qs.filter(kind__in=kind_values)
+            .values("category_id", "category__name")
+            .annotate(total=Sum("amount"))
+        )
+        rows = []
+        total = Decimal("0.00")
+        for row in grouped:
+            amount = row["total"] or Decimal("0.00")
+            rows.append(
+                {
+                    "name": row["category__name"] or "Uncategorized",
+                    "amount": amount,
+                    "category_id": row["category_id"],
+                }
+            )
+            total += amount
+        rows.sort(key=lambda r: r["name"])
+        return rows, total
+
+    operating_rows, operating_total = _group_by_kind(["income", "expense", "payroll", "cogs"])
+    investing_rows, investing_total = _group_by_kind(["withdraw"])
+    financing_rows, financing_total = _group_by_kind(["equity", "liability"])
+
+    unmatched_invoice_total = Decimal("0.00")
+    unmatched_bill_total = Decimal("0.00")
+
+    invoice_qs = Invoice.objects.exclude(status="void")
+    if account_id:
+        invoice_qs = invoice_qs.filter(account_id=int(account_id))
+    if vendor_id:
+        invoice_qs = invoice_qs.filter(customer_id=int(vendor_id))
+    if start_date:
+        invoice_qs = invoice_qs.filter(date__gte=start_date)
+    if end_date:
+        invoice_qs = invoice_qs.filter(date__lte=end_date)
+    for invoice in invoice_qs:
+        remaining = invoice.remaining_balance
+        if remaining > Decimal("0.00"):
+            unmatched_invoice_total += remaining
+
+    bill_qs = Bill.objects.exclude(status="void")
+    if account_id:
+        bill_qs = bill_qs.filter(account_id=int(account_id))
+    if vendor_id:
+        bill_qs = bill_qs.filter(vendor_id=int(vendor_id))
+    if start_date:
+        bill_qs = bill_qs.filter(date__gte=start_date)
+    if end_date:
+        bill_qs = bill_qs.filter(date__lte=end_date)
+    for bill in bill_qs:
+        remaining = bill.remaining_balance
+        if remaining > Decimal("0.00"):
+            unmatched_bill_total += remaining
+
+    if unmatched_invoice_total != Decimal("0.00"):
+        operating_rows.append(
+            {"name": "Unmatched invoices", "amount": unmatched_invoice_total, "category_id": None}
+        )
+        operating_total += unmatched_invoice_total
+    if unmatched_bill_total != Decimal("0.00"):
+        operating_rows.append(
+            {"name": "Unmatched bills", "amount": -unmatched_bill_total, "category_id": None}
+        )
+        operating_total -= unmatched_bill_total
+
+    operating_rows.sort(key=lambda r: r["name"])
+
+    def group_rows_by_parent(rows):
+        if not rows:
+            return []
+        category_ids = {row["category_id"] for row in rows if row.get("category_id")}
+        categories = Category.objects.filter(id__in=category_ids).select_related("parent")
+        category_map = {cat.id: cat for cat in categories}
+        groups = {}
+        for row in rows:
+            category_id_key = row.get("category_id")
+            category = category_map.get(category_id_key)
+            parent = category.parent if category and category.parent_id else category
+            parent_id = parent.id if parent else category_id_key or row["name"]
+            group = groups.setdefault(
+                parent_id,
+                {
+                    "parent_id": parent_id,
+                    "parent_name": parent.name if parent else row["name"],
+                    "parent_category_id": parent.id if parent else category_id_key,
+                    "rows": [],
+                    "total": Decimal("0.00"),
+                },
+            )
+            group["rows"].append(row)
+            group["total"] += row.get("amount", Decimal("0.00"))
+
+        grouped = list(groups.values())
+        grouped.sort(key=lambda g: g["parent_name"])
+        for group in grouped:
+            group["rows"].sort(key=lambda r: r["name"])
+            group["has_children"] = any(
+                row.get("category_id") != group["parent_category_id"] for row in group["rows"]
+            ) or len(group["rows"]) > 1
+        return grouped
+
+    operating_groups = group_rows_by_parent(operating_rows) if view_mode != "summary" else []
+    investing_groups = group_rows_by_parent(investing_rows) if view_mode != "summary" else []
+    financing_groups = group_rows_by_parent(financing_rows) if view_mode != "summary" else []
+
+    filters = {
+        "date_range": date_range,
+        "date_from": date_from,
+        "date_to": date_to,
+        "account_id": account_id,
+        "vendor_id": vendor_id,
+        "category_id": category_id,
+        "kind": kind if kind else "all",
+        "view": view_mode,
+    }
+
+    query_params = request.GET.copy()
+    query_params.pop("view", None)
+
+    return {
+        "filters": filters,
+        "report_ranges": REPORT_RANGE_OPTIONS,
+        "accounts": accounts,
+        "vendors": vendors,
+        "categories": categories,
+        "query_string": query_params.urlencode(),
+        "operating_rows": operating_rows,
+        "operating_total": operating_total,
+        "operating_groups": operating_groups,
+        "investing_rows": investing_rows,
+        "investing_total": investing_total,
+        "investing_groups": investing_groups,
+        "financing_rows": financing_rows,
+        "financing_total": financing_total,
+        "financing_groups": financing_groups,
+        "net_change": operating_total + investing_total + financing_total,
+        "view_mode": view_mode,
+    }
+
+
 def profit_loss_report(request):
     context = _profit_loss_context(request)
     return render(request, "fincore/reports/profit_loss.html", context)
+
+
+def balance_sheet_report(request):
+    context = _balance_sheet_context(request)
+    return render(request, "fincore/reports/balance_sheet.html", context)
+
+
+def balance_sheet_content(request):
+    context = _balance_sheet_context(request)
+    return render(request, "fincore/reports/balance_sheet_content.html", context)
+
+
+def cashflow_report(request):
+    context = _cashflow_context(request)
+    return render(request, "fincore/reports/cashflow.html", context)
+
+
+def cashflow_content(request):
+    context = _cashflow_context(request)
+    return render(request, "fincore/reports/cashflow_content.html", context)
 
 
 def _build_simple_xlsx(rows, sheet_name="Profit & Loss"):
@@ -1167,7 +1483,7 @@ def transaction_list(request):
     Data is mocked in the template for now; replace with real query + HTMX soon.
     """
     accounts = list(
-        Account.objects.filter(is_active=True)
+        selectable_accounts()
         .order_by("name")
         .values("id", "name", "account_type")
     )
@@ -1214,7 +1530,7 @@ def transaction_table(request):
         return redirect(target)
 
     accounts = list(
-        Account.objects.filter(is_active=True)
+        selectable_accounts()
         .order_by("name")
         .values("id", "name", "account_type")
     )

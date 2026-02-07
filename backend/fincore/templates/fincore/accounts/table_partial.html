@@ -1,26 +1,14 @@
 {% load formatting %}
-<div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-  <div class="flex items-center gap-3 flex-wrap">
-    <span class="text-slate-500">Filters: {{ show_archived|yesno:"Including archived,Active only" }}</span>
-  </div>
-  <div class="flex items-center gap-2">
-    <label class="inline-flex items-center gap-2 text-slate-600">
-      <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-             hx-get="{% url 'fincore:account_table' %}" hx-target="#accounts-table" hx-trigger="change"
-             name="show_archived" value="1" {% if show_archived %}checked{% endif %}>
-      <span>Show archived</span>
-    </label>
-  </div>
-</div>
 
 <div id="account-actions-errors" class="px-3 pt-2 text-sm text-rose-600"></div>
 
-<div class="overflow-x-auto flex-1 min-h-[50vh]" x-data="{ openId: null }">
+<div class="overflow-x-auto flex-1 min-h-[50vh]" x-data="{ openParents: {}, openId: null }">
   <table class="min-w-full text-sm text-slate-800">
     <thead class="bg-slate-50 text-xs font-medium text-slate-700 border-b border-slate-200">
       <tr>
         <th class="py-2 px-3 text-left">Account</th>
         <th class="py-2 px-3 text-left">Type</th>
+        <th class="py-2 px-3 text-left">Parent</th>
         <th class="py-2 px-3 text-left">Institution</th>
         <th class="py-2 px-3 text-left">Status</th>
         <th class="py-2 px-3 text-right">Balance</th>
@@ -28,36 +16,104 @@
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-200">
-{% if accounts %}
+{% if account_rows %}
   {% load account_tags %}
-  {% for account in accounts %}
-    <tr class="hover:bg-slate-50">
-      <td class="px-3 py-2">{{ account.name }}</td>
-      <td class="px-3 py-2 text-slate-600">{{ account.get_account_type_display }}</td>
-      <td class="px-3 py-2 text-slate-600">{{ account.institution|default:"-" }}</td>
-      <td class="px-3 py-2">
-        {% if account.is_active %}
-          <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
-        {% else %}
-          <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Inactive</span>
-        {% endif %}
-      </td>
-      <td class="px-3 py-2 text-right">
-        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-          <span class="tabular-nums">{{ account.balance|currency }}</span>
-          <span class="text-slate-500">
-            ({% if account.last_activity %}{{ account.last_activity|date:"m/d/Y" }}{% else %}--{% endif %})
+  {% for row in account_rows %}
+    {% if row.row_type == "parent" %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-3 py-2">
+          <div class="flex items-center gap-2">
+            <button type="button" class="text-slate-400 hover:text-slate-600" @click.stop="openParents[{{ row.account.id }}] = !openParents[{{ row.account.id }}]" x-init="openParents[{{ row.account.id }}] = true" aria-label="Toggle children">
+              <svg class="h-4 w-4 transition-transform" :class="openParents[{{ row.account.id }}] ? 'rotate-90' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            <span class="font-semibold text-slate-800">{{ row.account.name }}</span>
+          </div>
+        </td>
+        <td class="px-3 py-2 text-slate-600">{{ row.account.get_account_type_display }}</td>
+        <td class="px-3 py-2 text-slate-600">-</td>
+        <td class="px-3 py-2 text-slate-600">{{ row.account.institution|default:"-" }}</td>
+        <td class="px-3 py-2">
+          {% if row.account.is_active %}
+            <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+          {% else %}
+            <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 text-right">
+          <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+            <span class="tabular-nums">{{ row.balance|currency }}</span>
+            <span class="text-slate-500">
+              ({% if row.last_activity %}{{ row.last_activity|date:"m/d/Y" }}{% else %}--{% endif %})
+            </span>
           </span>
-        </span>
-      </td>
-      <td class="relative px-3 py-2 text-left">
-        {% account_actions account %}
-      </td>
-    </tr>
+        </td>
+        <td class="relative px-3 py-2 text-left">
+          {% account_actions row.account %}
+        </td>
+      </tr>
+      {% for child in row.children %}
+        <tr class="hover:bg-slate-50" x-show="openParents[{{ row.account.id }}]">
+          <td class="px-3 py-2">
+            <div class="flex items-center gap-2 pl-6">
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+              <span class="text-slate-700">{{ child.name }}</span>
+            </div>
+          </td>
+          <td class="px-3 py-2 text-slate-600">{{ child.get_account_type_display }}</td>
+          <td class="px-3 py-2 text-slate-600">{{ row.account.name }}</td>
+          <td class="px-3 py-2 text-slate-600">{{ child.institution|default:"-" }}</td>
+          <td class="px-3 py-2">
+            {% if child.is_active %}
+              <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+            {% else %}
+              <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Inactive</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-2 text-right">
+            <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+              <span class="tabular-nums">{{ child.balance|currency }}</span>
+              <span class="text-slate-500">
+                ({% if child.last_activity %}{{ child.last_activity|date:"m/d/Y" }}{% else %}--{% endif %})
+              </span>
+            </span>
+          </td>
+          <td class="relative px-3 py-2 text-left">
+            {% account_actions child %}
+          </td>
+        </tr>
+      {% endfor %}
+    {% else %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-3 py-2">{{ row.account.name }}</td>
+        <td class="px-3 py-2 text-slate-600">{{ row.account.get_account_type_display }}</td>
+        <td class="px-3 py-2 text-slate-600">-</td>
+        <td class="px-3 py-2 text-slate-600">{{ row.account.institution|default:"-" }}</td>
+        <td class="px-3 py-2">
+          {% if row.account.is_active %}
+            <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+          {% else %}
+            <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 text-right">
+          <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+            <span class="tabular-nums">{{ row.balance|currency }}</span>
+            <span class="text-slate-500">
+              ({% if row.last_activity %}{{ row.last_activity|date:"m/d/Y" }}{% else %}--{% endif %})
+            </span>
+          </span>
+        </td>
+        <td class="relative px-3 py-2 text-left">
+          {% account_actions row.account %}
+        </td>
+      </tr>
+    {% endif %}
   {% endfor %}
 {% else %}
   <tr>
-    <td colspan="6" class="px-3 py-6 text-center text-sm text-slate-500">No accounts available</td>
+    <td colspan="7" class="px-3 py-6 text-center text-sm text-slate-500">No accounts available</td>
   </tr>
 {% endif %}
     </tbody>

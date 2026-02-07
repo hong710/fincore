@@ -118,6 +118,27 @@ P&L now correctly shows:
 - Payroll is a separate section (expense-kind), but included in total expenses.
 - Single-period reports render as `Category | Amount` (no Total column).
 
+---
+
+## Reports: Balance Sheet + Cash Flow (UI)
+
+**Added:** February 2026  
+**Status:** ✅ Implemented (UI + server-rendered data)
+
+### Balance Sheet
+- New report at `/reports/balance-sheet/`.
+- Filters auto-apply on change (report period, account, category, type).
+- Sections: Assets, Liabilities, Equity with totals and final “Total Liabilities & Equity”.
+- Snapshot uses report end date (as-of date).
+
+### Cash Flow
+- New report at `/reports/cashflow/`.
+- Filters auto-apply on change (report period, account, vendor, category, type).
+- Sections: Operating, Investing, Financing with section totals and “Net change in cash”.
+- Includes unpaid invoice/bill balances to avoid duplicate cash when matched.
+- “Detailed / Summary” toggle for a simplified inflow/outflow view.
+- Cash Flow detailed view now supports parent/child category expand/collapse (same pattern as P&L).
+
 ### Files Modified
 - `backend/fincore/views/transaction_views.py`
 - `backend/fincore/templates/fincore/reports/profit_loss_content.html`
@@ -159,6 +180,27 @@ P&L now correctly shows:
 - `backend/fincore/models/category.py`
 - `backend/fincore/migrations/0021_add_category_kind_payroll.py`
 - `backend/fincore/templates/fincore/categories/index.html`
+
+---
+
+## Live Table Refresh + Category Dropdown Updates
+
+**Added:** February 2026  
+**Status:** ✅ Implemented
+
+### What Changed
+- Added **Refresh** buttons to list tables (Accounts, Sales Transactions, Bills).
+- Buttons re-fetch table content via HTMX without full page reload.
+- Transaction category dropdowns now re-load options on `categories:refresh` events.
+
+### Files Modified
+- `backend/fincore/templates/fincore/accounts/index.html`
+- `backend/fincore/templates/fincore/sales/transactions/index.html`
+- `backend/fincore/templates/fincore/bills/transactions/index.html`
+- `backend/fincore/templates/fincore/transactions/index.html`
+- `backend/fincore/views/category_views.py`
+- `backend/fincore/templates/fincore/categories/options.html`
+- `backend/fincore/urls.py`
 
 ---
 

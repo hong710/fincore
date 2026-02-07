@@ -12,6 +12,7 @@ from django.utils.dateparse import parse_date
 from django.core.paginator import Paginator
 
 from fincore.models import Account, Bill, BillItem, BillPayment, Category, Transaction, Vendor
+from fincore.views.utils import selectable_accounts
 from .transaction_views import REPORT_RANGE_OPTIONS, _resolve_report_range
 
 
@@ -39,7 +40,7 @@ def bills_list(request):
 
     if search:
         qs = qs.filter(number__icontains=search)
-    accounts = list(Account.objects.filter(is_active=True).order_by("name"))
+    accounts = list(selectable_accounts())
     vendors = list(Vendor.objects.filter(is_active=True, kind="payee").order_by("name"))
     account_ids = {acct.id for acct in accounts}
     vendor_ids = {vend.id for vend in vendors}
@@ -106,7 +107,7 @@ def bills_list(request):
 
 
 def bill_create(request):
-    accounts = Account.objects.filter(is_active=True).order_by("name")
+    accounts = selectable_accounts()
     vendors = Vendor.objects.filter(is_active=True, kind="payee").order_by("name")
     categories = (
         Category.objects.filter(is_active=True)
@@ -229,7 +230,7 @@ def bill_create(request):
 
 def bill_edit(request, bill_id):
     bill = get_object_or_404(Bill.objects.select_related("vendor", "account"), pk=bill_id)
-    accounts = Account.objects.filter(is_active=True).order_by("name")
+    accounts = selectable_accounts()
     vendors = Vendor.objects.filter(is_active=True, kind="payee").order_by("name")
     categories = (
         Category.objects.filter(is_active=True)

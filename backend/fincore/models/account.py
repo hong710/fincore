@@ -18,6 +18,13 @@ class Account(models.Model):
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES, default="checking")
     institution = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
     is_active = models.BooleanField(
         default=True,
         help_text="Archive instead of delete. Inactive accounts stay in history but are not selectable for new activity.",

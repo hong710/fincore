@@ -18,6 +18,7 @@ from fincore.models import (
     Transaction,
     Vendor,
 )
+from fincore.views.utils import selectable_accounts
 from .transaction_views import REPORT_RANGE_OPTIONS, _resolve_report_range
 
 
@@ -38,7 +39,7 @@ def sales_transactions_list(request):
 
     date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
 
-    accounts = list(Account.objects.filter(is_active=True).order_by("name"))
+    accounts = list(selectable_accounts())
     customers = list(Vendor.objects.filter(is_active=True, kind="payer").order_by("name"))
     account_ids = {acct.id for acct in accounts}
     customer_ids = {cust.id for cust in customers}
@@ -115,7 +116,7 @@ def sales_transactions_list(request):
 
 
 def sales_invoice_create(request):
-    accounts = Account.objects.filter(is_active=True).order_by("name")
+    accounts = selectable_accounts()
     customers = Vendor.objects.filter(is_active=True, kind="payer").order_by("name")
     categories = (
         Category.objects.filter(is_active=True)
@@ -292,7 +293,7 @@ def sales_invoice_create(request):
 
 def sales_invoice_edit(request, invoice_id):
     invoice = get_object_or_404(Invoice.objects.select_related("customer", "account"), pk=invoice_id)
-    accounts = Account.objects.filter(is_active=True).order_by("name")
+    accounts = selectable_accounts()
     customers = Vendor.objects.filter(is_active=True, kind="payer").order_by("name")
     categories = (
         Category.objects.filter(is_active=True)

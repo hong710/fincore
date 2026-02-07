@@ -46,6 +46,17 @@ This document captures the visual foundations we use across Storybook and Django
 - Amounts: income in `emerald-600`, expenses/COGS in `rose-600`, net income color based on sign.
 - Table rows use `hover:bg-slate-50` for data rows; section/total rows remain static.
 
+## Reports (Balance Sheet)
+- Layout: title + filter bar (report period, account, category, type) that auto-submits on change.
+- Table: Assets, Liabilities, Equity sections with totals and a final “Total Liabilities & Equity”.
+- Amount column is right-aligned; section headers are uppercase.
+
+## Reports (Cash Flow)
+- Layout: title + filter bar (report period, account, vendor, category, type) that auto-submits on change.
+- Table: Operating, Investing, Financing sections with section totals and final “Net change in cash”.
+- Supports a “Detailed / Summary” toggle (summary shows section totals only).
+- Detailed view uses parent/child expandable category rows (same interaction as P&L).
+
 ## Sales Transactions (Invoices)
 - Layout: title + filter bar (report period, account, customer, status, min/max total, search) that auto-submits on change (no `Apply` CTA).
 - Table: QuickBooks-like summary with columns for invoice number, date, customer, total, status, due date, account, actions.
