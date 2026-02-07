@@ -66,8 +66,13 @@
               <td class="px-3 py-2">
                 <select :name="`item_category_${index + 1}`" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-indigo-500 focus:ring-indigo-500" x-model="row.category_id">
                   <option value="">Select category</option>
-                  {% for category in categories %}
-                    <option value="{{ category.id }}">{{ category.name }}</option>
+                  {% regroup categories by kind as grouped_categories %}
+                  {% for group in grouped_categories %}
+                    <optgroup label="{{ group.grouper|upper }}">
+                      {% for category in group.list %}
+                        <option value="{{ category.id }}">{{ category.name }}</option>
+                      {% endfor %}
+                    </optgroup>
                   {% endfor %}
                 </select>
               </td>

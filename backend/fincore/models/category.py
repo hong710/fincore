@@ -9,6 +9,7 @@ class Category(models.Model):
     KIND_CHOICES = [
         ("income", "Income"),
         ("expense", "Expense"),
+        ("payroll", "Payroll"),
         ("transfer", "Transfer"),
         ("opening", "Opening"),
         ("withdraw", "Withdraw"),
@@ -20,6 +21,13 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     kind = models.CharField(max_length=12, choices=KIND_CHOICES)
     description = models.TextField(blank=True)
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="children",
+        on_delete=models.PROTECT,
+    )
     is_active = models.BooleanField(default=True)
     is_protected = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -117,7 +117,11 @@ def sales_transactions_list(request):
 def sales_invoice_create(request):
     accounts = Account.objects.filter(is_active=True).order_by("name")
     customers = Vendor.objects.filter(is_active=True, kind="payer").order_by("name")
-    categories = Category.objects.filter(is_active=True, kind="income").order_by("name")
+    categories = (
+        Category.objects.filter(is_active=True)
+        .exclude(kind__in=["withdraw", "opening", "transfer", "equity", "liability"])
+        .order_by("kind", "name")
+    )
     category_ids = {str(cat.id) for cat in categories}
     item_rows = [
         {
@@ -290,7 +294,11 @@ def sales_invoice_edit(request, invoice_id):
     invoice = get_object_or_404(Invoice.objects.select_related("customer", "account"), pk=invoice_id)
     accounts = Account.objects.filter(is_active=True).order_by("name")
     customers = Vendor.objects.filter(is_active=True, kind="payer").order_by("name")
-    categories = Category.objects.filter(is_active=True, kind="income").order_by("name")
+    categories = (
+        Category.objects.filter(is_active=True)
+        .exclude(kind__in=["withdraw", "opening", "transfer", "equity", "liability"])
+        .order_by("kind", "name")
+    )
     category_ids = {str(cat.id) for cat in categories}
     tax_rate_default = Decimal("7.75")
     tax_rate = invoice.tax_rate if invoice.tax_rate is not None else tax_rate_default
@@ -623,8 +631,28 @@ def sales_invoice_payment_delete(request, payment_id):
         return HttpResponseBadRequest("Invalid method")
     payment = get_object_or_404(InvoicePayment.objects.select_related("invoice"), pk=payment_id)
     invoice = payment.invoice
+    txn = payment.transaction
     with db_transaction.atomic():
         payment.delete()
+        remaining_links = InvoicePayment.objects.filter(transaction=txn).exists()
+        if not remaining_links:
+            uncat_income = Category.objects.filter(
+                name="Uncategorized Income", kind="income", is_protected=True
+            ).first()
+            uncat_expense = Category.objects.filter(
+                name="Uncategorized Expense", kind="expense", is_protected=True
+            ).first()
+            fallback_category = uncat_expense if txn.amount < 0 else uncat_income
+            update_fields = []
+            if fallback_category and txn.category_id != fallback_category.id:
+                txn.category = fallback_category
+                txn.kind = fallback_category.kind
+                update_fields += ["category", "kind"]
+            if txn.vendor_id is not None:
+                txn.vendor = None
+                update_fields.append("vendor")
+            if update_fields:
+                txn.save(update_fields=update_fields)
         invoice.update_status_from_payments()
         invoice.save()
     return redirect("fincore:sales_invoice_detail", invoice_id=invoice.id)

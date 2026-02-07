@@ -108,7 +108,11 @@ def bills_list(request):
 def bill_create(request):
     accounts = Account.objects.filter(is_active=True).order_by("name")
     vendors = Vendor.objects.filter(is_active=True, kind="payee").order_by("name")
-    categories = Category.objects.filter(is_active=True, kind__in=["expense", "cogs"]).order_by("name")
+    categories = (
+        Category.objects.filter(is_active=True)
+        .exclude(kind__in=["withdraw", "opening", "transfer", "equity", "liability"])
+        .order_by("kind", "name")
+    )
     category_ids = {str(cat.id) for cat in categories}
     item_rows = [{"category_id": "", "description": "", "amount": "", "total": ""}]
     errors = []
@@ -227,7 +231,11 @@ def bill_edit(request, bill_id):
     bill = get_object_or_404(Bill.objects.select_related("vendor", "account"), pk=bill_id)
     accounts = Account.objects.filter(is_active=True).order_by("name")
     vendors = Vendor.objects.filter(is_active=True, kind="payee").order_by("name")
-    categories = Category.objects.filter(is_active=True, kind__in=["expense", "cogs"]).order_by("name")
+    categories = (
+        Category.objects.filter(is_active=True)
+        .exclude(kind__in=["withdraw", "opening", "transfer", "equity", "liability"])
+        .order_by("kind", "name")
+    )
     category_ids = {str(cat.id) for cat in categories}
     errors = []
 

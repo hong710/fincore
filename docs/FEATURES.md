@@ -107,6 +107,61 @@ P&L now correctly shows:
 
 ---
 
+## Profit & Loss: Hierarchical View + Payroll Section
+
+**Added:** February 2026  
+**Status:** ✅ Implemented
+
+### What Changed
+- P&L now groups categories by parent and supports expand/collapse per parent.
+- Parent categories display totals when collapsed.
+- Payroll is a separate section (expense-kind), but included in total expenses.
+- Single-period reports render as `Category | Amount` (no Total column).
+
+### Files Modified
+- `backend/fincore/views/transaction_views.py`
+- `backend/fincore/templates/fincore/reports/profit_loss_content.html`
+
+---
+
+## Profit & Loss: Export + Print
+
+**Added:** February 2026  
+**Status:** ✅ Implemented
+
+### What Changed
+- Added **Export Excel** button (server-generated `.xlsx`).
+- Added **Print** button with print-specific styles to render the full report in one page (no scroll clipping).
+- Export includes all section rows with child categories.
+
+### Files Modified
+- `backend/fincore/views/transaction_views.py`
+- `backend/fincore/templates/fincore/reports/profit_loss.html`
+- `backend/fincore/templates/fincore/reports/profit_loss_content.html`
+- `backend/fincore/urls.py`
+
+### Print Behavior
+- Print hides the full app shell (header/sidebar/footer).
+- Only the P&L report content is rendered for print.
+
+---
+
+## Category Kind: Payroll
+
+**Added:** February 2026  
+**Status:** ✅ Implemented
+
+### What Changed
+- Added `payroll` to category kinds.
+- Payroll shows in P&L as its own section.
+
+### Files Modified
+- `backend/fincore/models/category.py`
+- `backend/fincore/migrations/0021_add_category_kind_payroll.py`
+- `backend/fincore/templates/fincore/categories/index.html`
+
+---
+
 ## Invoice: Tax System Redesign
 
 **Added:** February 2026  

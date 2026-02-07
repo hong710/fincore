@@ -1,7 +1,10 @@
-# Profit & Loss Filter Button Toggle Fix
+# Profit & Loss Filter Behavior Fix
 
-## Problem
-The Apply button on the Profit & Loss report page was toggling/resetting filters on every load, making it impossible to maintain filter state.
+## Update (Auto-Apply Filters)
+The Apply button was removed. Filters now submit immediately on change (server-rendered HTMX), and selected values are persisted via request params → context → selected state. No JS-only state is used.
+
+## Original Problem (Before Auto-Apply)
+The Apply button toggled/reset filters on every load, making it impossible to maintain filter state.
 
 ## Root Cause Analysis
 

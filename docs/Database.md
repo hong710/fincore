@@ -3,7 +3,7 @@
 ## Entities
 - **Account**: Where money lives. Balance is always derived.
   - has `is_active` (boolean). Inactive accounts are archived, never deleted once transactions exist.
-- **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `transfer` | `opening` | `withdraw` | `equity` | `liability` | `cogs`), `is_active`, and `is_protected`. Imported transactions are assigned to uncategorized categories until reviewed.
+- **Category**: Defines transaction kind. Has `kind` (`income` | `expense` | `payroll` | `transfer` | `opening` | `withdraw` | `equity` | `liability` | `cogs`), optional `parent` (self‑FK for subcategories), `is_active`, and `is_protected`. Imported transactions are assigned to uncategorized categories until reviewed.
   - **Protected categories**: Cannot be renamed, re-typed, deactivated, or deleted. Used for "Uncategorized Income" and "Uncategorized Expense".
 - **Vendor**: Counterparty directory. Has `kind` (`payer` | `payee`), `description`, `is_active`.
 - **Invoice**: Sales document for matching incoming transactions later. Has `number`, `customer` (Vendor, payer), `account`, `date`, `due_date`, `status`, `subtotal`, `tax_rate`, `tax_exclude`, `tax_total`, `total`, `is_locked`.
@@ -37,6 +37,7 @@
 ## ERD (conceptual)
 ```
 Account (1) ──< Transaction >── (1) Category
+Category (1) ───────< Category (children)
     |                     \            /
     |                      \ (optional)/
     |                       >── (1) TransferGroup
@@ -65,7 +66,7 @@ Details:
 - **account**
   - id PK, name (unique), description?, is_active (bool, default true), created_at
 - **category**
-  - id PK, name, kind (`income|expense|transfer|opening|withdraw|equity|liability|cogs`), description?, is_active (bool, default true), is_protected (bool, default false), created_at
+  - id PK, name, kind (`income|expense|payroll|transfer|opening|withdraw|equity|liability|cogs`), parent_id (self‑FK, nullable), description?, is_active (bool, default true), is_protected (bool, default false), created_at
   - unique_together: (name, kind)
 - **vendor**
   - id PK, name, kind (`payer|payee`), description?, is_active (bool, default true), created_at
@@ -100,13 +101,14 @@ Details:
 - **transfer_group**
   - id PK, reference (unique), created_at
 - **transaction**
-  - id PK, date, account_id FK, amount (signed), kind (`income|expense|transfer|opening|withdraw|equity|liability|cogs`),
+  - id PK, date, account_id FK, amount (signed), kind (`income|expense|payroll|transfer|opening|withdraw|equity|liability|cogs`),
     vendor_id FK NULL, payee (text, optional), category_id FK NULL, transfer_group_id FK NULL,
     is_imported (bool, default false), is_locked (bool, default false), import_batch_id FK NULL (PROTECT),
     description, source (`manual|csv`), created_at
   - business rules (enforced in validation/service layer):
     - income: amount > 0 AND category_id NOT NULL
     - expense: amount < 0 AND category_id NOT NULL
+    - payroll: amount < 0 AND category_id NOT NULL (reported as its own section in P&L)
     - transfer: category_id NOT NULL AND transfer_group_id NOT NULL
     - opening: category_id NOT NULL; excluded from P&L; payee optional
     - withdraw: category_id NOT NULL; excluded from P&L
@@ -118,7 +120,8 @@ Details:
 ## Profit & Loss Rules
 - Income is derived from **both** InvoiceItems (invoice-based revenue) **and** Transactions with `kind="income"` (imported/manual income).
 - InvoiceItem income and Transaction income are merged by category and period.
-- Expenses/COGS come from Transactions with kind `expense` or `cogs`.
+- Expenses/COGS come from Transactions with kind `expense`, `payroll`, or `cogs`.
+- Payroll is grouped separately from Expenses in the report, but is included in total expenses.
 - Always exclude transfers, opening, and withdraw transactions.
 - Transactions that are matched to invoices (InvoicePayment exists) are excluded from income P&L to prevent double-counting.
 - Uncategorized categories ("Uncategorized Income", "Uncategorized Expense") always appear in P&L even when $0.00.

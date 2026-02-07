@@ -7,9 +7,9 @@
   x-data="{
     createOpen: false,
     editOpen: false,
-    editForm: { id: null, name: '', kind: 'expense', description: '', is_active: true, is_protected: false },
+    editForm: { id: null, name: '', kind: 'expense', description: '', parent_id: '', is_active: true, is_protected: false },
     openEdit(data) {
-      this.editForm = { ...data };
+      this.editForm = { ...data, parent_id: data.parent_id ? String(data.parent_id) : '' };
       this.editOpen = true;
       this.$nextTick(() => { if (this.$refs.editErrors) this.$refs.editErrors.textContent = ''; });
     }
@@ -68,12 +68,27 @@
               <select name="kind" id="cat-new-kind" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <option value="income">Income</option>
                 <option value="expense" selected>Expense</option>
+                <option value="payroll">Payroll</option>
                 <option value="transfer">Transfer</option>
                 <option value="opening">Opening</option>
                 <option value="withdraw">Withdraw</option>
                 <option value="equity">Equity</option>
                 <option value="liability">Liability</option>
                 <option value="cogs">COGS</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label for="cat-new-parent" class="text-sm font-medium text-slate-700">Parent (optional)</label>
+              <select name="parent_id" id="cat-new-parent" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">No parent</option>
+                {% regroup parent_options by kind as grouped_parent_options %}
+                {% for group in grouped_parent_options %}
+                  <optgroup label="{{ group.grouper|upper }}">
+                    {% for parent in group.list %}
+                      <option value="{{ parent.id }}">{{ parent.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% endfor %}
               </select>
             </div>
             <div class="mt-6 flex h-10 items-center">
@@ -132,12 +147,27 @@
             <select name="kind" id="cat-edit-kind" x-model="editForm.kind" :disabled="editForm.is_protected" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500">
               <option value="income">Income</option>
               <option value="expense">Expense</option>
+              <option value="payroll">Payroll</option>
               <option value="transfer">Transfer</option>
               <option value="opening">Opening</option>
               <option value="withdraw">Withdraw</option>
               <option value="equity">Equity</option>
               <option value="liability">Liability</option>
               <option value="cogs">COGS</option>
+            </select>
+          </div>
+          <div class="space-y-1">
+            <label for="cat-edit-parent" class="text-sm font-medium text-slate-700">Parent (optional)</label>
+            <select name="parent_id" id="cat-edit-parent" x-model="editForm.parent_id" :disabled="editForm.is_protected" class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-500">
+              <option value="">No parent</option>
+              {% regroup parent_options by kind as grouped_parent_options %}
+              {% for group in grouped_parent_options %}
+                <optgroup label="{{ group.grouper|upper }}">
+                  {% for parent in group.list %}
+                    <option value="{{ parent.id }}">{{ parent.name }}</option>
+                  {% endfor %}
+                </optgroup>
+              {% endfor %}
             </select>
           </div>
           <div class="mt-6 flex h-10 items-center">

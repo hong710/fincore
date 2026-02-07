@@ -68,30 +68,37 @@
       </th>
     </tr>
   </thead>
-  <tbody class="divide-y divide-slate-200">
+  <tbody class="divide-y divide-slate-200" x-data="{ openParents: {} }">
     {% if page_obj.object_list %}
       {% for category in page_obj.object_list %}
+        {% with children=category.child_rows %}
         <tr
           class="h-8 hover:bg-slate-50 transition-colors"
           @dblclick="$dispatch('category-edit', {
             id: {{ category.id }},
             name: '{{ category.name|escapejs }}',
             kind: '{{ category.kind }}',
+            parent_id: {% if category.parent_id %}{{ category.parent_id }}{% else %}null{% endif %},
             description: '{{ category.description|default:''|escapejs }}',
             is_active: {{ category.is_active|yesno:'true,false' }},
             is_protected: {{ category.is_protected|yesno:'true,false' }}
           })"
         >
           <td class="px-4 py-0.5 whitespace-nowrap">
-            {% if category.kind == "transfer" %}
-              <a href="{% url 'fincore:category_report' category.id %}" class="text-slate-700 hover:text-indigo-600">
+            <div class="flex items-center gap-2">
+              {% if children %}
+                <button type="button" class="text-slate-400 hover:text-slate-600" @click.stop="openParents[{{ category.id }}] = !openParents[{{ category.id }}]" x-init="openParents[{{ category.id }}] = true" aria-label="Toggle children">
+                  <svg class="h-4 w-4 transition-transform" :class="openParents[{{ category.id }}] ? 'rotate-90' : ''" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              {% else %}
+                <span class="inline-block w-4"></span>
+              {% endif %}
+              <a href="{% url 'fincore:category_report' category.id %}" class="text-slate-700 hover:text-indigo-600 font-semibold">
                 {{ category.name }}
               </a>
-            {% else %}
-              <a href="{% url 'fincore:category_report' category.id %}" class="text-slate-700 hover:text-indigo-600">
-                {{ category.name }}
-              </a>
-            {% endif %}
+            </div>
           </td>
           <td class="px-4 py-0.5 whitespace-nowrap capitalize">{{ category.kind }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap" title="{{ category.description|default:"" }}">{{ category.description|default:"-"|truncatewords:15 }}</td>
@@ -106,7 +113,7 @@
               {% endif %}
             </div>
           </td>
-          <td class="px-4 py-0.5 whitespace-nowrap text-slate-600">{{ category.transaction_count }}</td>
+          <td class="px-4 py-0.5 whitespace-nowrap text-slate-600">{{ category.used_count }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap">
             {% if category.is_active %}
               <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
@@ -115,6 +122,54 @@
             {% endif %}
           </td>
         </tr>
+        {% if children %}
+          {% for child in children %}
+            <tr
+              class="h-8 hover:bg-slate-50 transition-colors"
+              x-show="openParents[{{ category.id }}]"
+              @dblclick="$dispatch('category-edit', {
+                id: {{ child.id }},
+                name: '{{ child.name|escapejs }}',
+                kind: '{{ child.kind }}',
+                parent_id: {% if child.parent_id %}{{ child.parent_id }}{% else %}null{% endif %},
+                description: '{{ child.description|default:''|escapejs }}',
+                is_active: {{ child.is_active|yesno:'true,false' }},
+                is_protected: {{ child.is_protected|yesno:'true,false' }}
+              })"
+            >
+              <td class="px-4 py-0.5 whitespace-nowrap">
+                <div class="flex items-center gap-2 pl-6">
+                  <span class="inline-block h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                  <a href="{% url 'fincore:category_report' child.id %}" class="text-slate-700 hover:text-indigo-600">
+                    {{ child.name }}
+                  </a>
+                </div>
+              </td>
+              <td class="px-4 py-0.5 whitespace-nowrap capitalize">{{ child.kind }}</td>
+              <td class="px-4 py-0.5 whitespace-nowrap" title="{{ child.description|default:"" }}">{{ child.description|default:"-"|truncatewords:15 }}</td>
+              <td class="px-2 py-0.5 whitespace-nowrap">
+                <div class="flex items-center justify-center">
+                  {% if child.is_protected %}
+                    <svg class="h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-label="Protected">
+                      <path fill-rule="evenodd" d="M12 1.5a4.5 4.5 0 0 0-4.5 4.5V9H6a2.25 2.25 0 0 0-2.25 2.25v9A2.25 2.25 0 0 0 6 22.5h12a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 18 9h-1.5V6A4.5 4.5 0 0 0 12 1.5Zm-3 7.5V6a3 3 0 1 1 6 0v3H9Z" clip-rule="evenodd"/>
+                    </svg>
+                  {% else %}
+                    <span class="text-slate-400">-</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td class="px-4 py-0.5 whitespace-nowrap text-slate-600">{{ child.used_count }}</td>
+              <td class="px-4 py-0.5 whitespace-nowrap">
+                {% if child.is_active %}
+                  <span class="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+                {% else %}
+                  <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">Inactive</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        {% endif %}
+        {% endwith %}
       {% endfor %}
     {% else %}
       <tr>

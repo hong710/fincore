@@ -17,7 +17,8 @@ from django.db.models.functions import (
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from fincore.models import Account, Category, InvoiceItem, Transaction, TransferGroup, Vendor
+from django.http import HttpResponse
+from fincore.models import Account, BillItem, Category, InvoiceItem, Transaction, TransferGroup, Vendor
 
 
 def _render_transfer_list(request, category=None):
@@ -31,7 +32,10 @@ def _render_transfer_list(request, category=None):
     date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
 
     # Get filter lists
-    vendors = list(Vendor.objects.filter(is_active=True).order_by("name"))
+    vendor_kind = "payer" if category.kind == "income" else "payee"
+    vendors = list(
+        Vendor.objects.filter(is_active=True, kind=vendor_kind).order_by("name")
+    )
     accounts = list(Account.objects.filter(is_active=True).order_by("name"))
     vendor_ids = {v.id for v in vendors}
     account_ids = {a.id for a in accounts}
@@ -366,35 +370,132 @@ def category_report(request, pk):
     if account_id_int not in account_ids:
         account_id_int = None
 
-    qs = (
+    goto_date_range, goto_date_from, goto_date_to = _build_goto_range(
+        date_range, date_from, date_to
+    )
+
+    txn_qs = (
         Transaction.objects.select_related("account", "vendor")
         .filter(category=category)
         .order_by("-date", "-id")
     )
+    if category.kind == "income":
+        txn_qs = txn_qs.filter(invoice_payments__isnull=True)
+    if category.kind in {"expense", "payroll"}:
+        txn_qs = txn_qs.filter(bill_payments__isnull=True)
 
     if start_date:
-        qs = qs.filter(date__gte=start_date)
+        txn_qs = txn_qs.filter(date__gte=start_date)
     if end_date:
-        qs = qs.filter(date__lte=end_date)
+        txn_qs = txn_qs.filter(date__lte=end_date)
     if vendor_id_int:
-        qs = qs.filter(vendor_id=vendor_id_int)
+        txn_qs = txn_qs.filter(vendor_id=vendor_id_int)
     if account_id_int:
-        qs = qs.filter(account_id=account_id_int)
+        txn_qs = txn_qs.filter(account_id=account_id_int)
 
-    # Calculate total for all filtered transactions
-    total_amount = qs.aggregate(total=Sum("amount"))["total"] or 0
+    invoice_items = []
+    if category.kind == "income":
+        invoice_qs = (
+            InvoiceItem.objects.select_related(
+                "invoice",
+                "invoice__account",
+                "invoice__customer",
+            )
+            .filter(category=category)
+            .order_by("-invoice__date", "-id")
+        )
+        if start_date:
+            invoice_qs = invoice_qs.filter(invoice__date__gte=start_date)
+        if end_date:
+            invoice_qs = invoice_qs.filter(invoice__date__lte=end_date)
+        if vendor_id_int:
+            invoice_qs = invoice_qs.filter(invoice__customer_id=vendor_id_int)
+        if account_id_int:
+            invoice_qs = invoice_qs.filter(invoice__account_id=account_id_int)
+        invoice_items = list(invoice_qs)
+
+    bill_items = []
+    if category.kind in {"expense", "payroll"}:
+        bill_qs = (
+            BillItem.objects.select_related(
+                "bill",
+                "bill__account",
+                "bill__vendor",
+            )
+            .filter(category=category)
+            .order_by("-bill__date", "-id")
+        )
+        if start_date:
+            bill_qs = bill_qs.filter(bill__date__gte=start_date)
+        if end_date:
+            bill_qs = bill_qs.filter(bill__date__lte=end_date)
+        if vendor_id_int:
+            bill_qs = bill_qs.filter(bill__vendor_id=vendor_id_int)
+        if account_id_int:
+            bill_qs = bill_qs.filter(bill__account_id=account_id_int)
+        bill_items = list(bill_qs)
+
+    rows = []
+    for txn in txn_qs:
+        rows.append(
+            {
+                "row_date": txn.date,
+                "row_id": txn.id,
+                "date": txn.date,
+                "vendor_name": txn.vendor.name if txn.vendor else "-",
+                "description": txn.description or "-",
+                "account_name": txn.account.name,
+                "amount": txn.amount,
+                "source": "transaction",
+                "goto_url": reverse("fincore:transaction_list")
+                + f"?account_id={txn.account_id}&category={category.id}"
+                + f"&date_range={goto_date_range}"
+                + (f"&date_from={goto_date_from}" if goto_date_from else "")
+                + (f"&date_to={goto_date_to}" if goto_date_to else ""),
+            }
+        )
+
+    for item in invoice_items:
+        rows.append(
+            {
+                "row_date": item.invoice.date,
+                "row_id": item.id,
+                "date": item.invoice.date,
+                "vendor_name": item.invoice.customer.name,
+                "description": item.description or "-",
+                "account_name": item.invoice.account.name,
+                "amount": item.amount,
+                "source": "invoice_item",
+                "goto_url": reverse("fincore:sales_invoice_detail", args=[item.invoice_id]),
+            }
+        )
+
+    for item in bill_items:
+        rows.append(
+            {
+                "row_date": item.bill.date,
+                "row_id": item.id,
+                "date": item.bill.date,
+                "vendor_name": item.bill.vendor.name if item.bill.vendor else "-",
+                "description": item.description or "-",
+                "account_name": item.bill.account.name,
+                "amount": item.amount,
+                "source": "bill_item",
+                "goto_url": reverse("fincore:bill_detail", args=[item.bill_id]),
+            }
+        )
+
+    rows.sort(key=lambda row: (row["row_date"], row["row_id"]), reverse=True)
+
+    total_amount = sum((row["amount"] for row in rows), Decimal("0.00"))
 
     page_size = 25
     try:
         page_number = int(request.GET.get("page") or 1)
     except (TypeError, ValueError):
         page_number = 1
-    paginator = Paginator(qs, page_size)
+    paginator = Paginator(rows, page_size)
     page_obj = paginator.get_page(page_number)
-
-    goto_date_range, goto_date_from, goto_date_to = _build_goto_range(
-        date_range, date_from, date_to
-    )
 
     query_params = request.GET.copy()
     query_params.pop("page", None)
@@ -437,7 +538,7 @@ def _profit_loss_context(request):
         display_by = "months"
 
     date_range, start_date, end_date = _resolve_report_range(date_range, date_from, date_to)
-    pnl_kinds = ["income", "expense", "cogs"]
+    pnl_kinds = ["income", "expense", "payroll", "cogs"]
     if kind not in pnl_kinds:
         kind = "all"
 
@@ -470,17 +571,20 @@ def _profit_loss_context(request):
 
     income_rows = []
     cogs_rows = []
+    payroll_rows = []
     expense_rows = []
 
     income_total = Decimal("0.00")
     cogs_total = Decimal("0.00")
+    payroll_total = Decimal("0.00")
     expense_total = Decimal("0.00")
     income_dim_values = []
     expense_dim_values = []
     income_data_rows = {}
-    expense_data_rows = {"cogs": {}, "expense": {}}
+    expense_data_rows = {"cogs": {}, "payroll": {}, "expense": {}}
     income_column_totals = []
     cogs_column_totals = []
+    payroll_column_totals = []
     expense_column_totals = []
     gross_profit_column_totals = []
     net_operating_income_column_totals = []
@@ -600,8 +704,8 @@ def _profit_loss_context(request):
 
         income_total = sum((row["total"] for row in income_rows), Decimal("0.00"))
 
-    if kind in {"all", "cogs", "expense"}:
-        txn_kinds = ["cogs", "expense"] if kind == "all" else [kind]
+    if kind in {"all", "cogs", "expense", "payroll"}:
+        txn_kinds = ["cogs", "expense", "payroll"] if kind == "all" else [kind]
         txn_qs = (
             Transaction.objects.select_related("category", "account", "vendor")
             .filter(category__isnull=False, kind__in=txn_kinds)
@@ -631,7 +735,7 @@ def _profit_loss_context(request):
                 .values("category_id", "category__name", "category__kind", "period")
                 .annotate(total=Sum("amount"))
             )
-            data_rows = {"cogs": {}, "expense": {}}
+            data_rows = {"cogs": {}, "payroll": {}, "expense": {}}
             for row in grouped:
                 kind_key = row["category__kind"]
                 category_id_key = row["category_id"]
@@ -645,6 +749,7 @@ def _profit_loss_context(request):
                     row["total"] or Decimal("0.00")
                 )
             cogs_rows = build_rows(data_rows["cogs"], columns)
+            payroll_rows = build_rows(data_rows["payroll"], columns)
             expense_rows = build_rows(data_rows["expense"], columns)
         else:
             dimension_field = "category__name" if display_by == "product" else "vendor__name"
@@ -653,7 +758,7 @@ def _profit_loss_context(request):
                 .annotate(total=Sum("amount"))
             )
             dim_values = []
-            data_rows = {"cogs": {}, "expense": {}}
+            data_rows = {"cogs": {}, "payroll": {}, "expense": {}}
             for row in grouped:
                 dim_value = row.get(dimension_field) or "Unassigned"
                 dim_values.append(dim_value)
@@ -674,6 +779,9 @@ def _profit_loss_context(request):
         columns = _build_dimension_columns(income_dim_values + expense_dim_values)
         income_rows = build_rows(income_data_rows, columns) if income_data_rows else []
         cogs_rows = build_rows(expense_data_rows["cogs"], columns) if expense_data_rows else []
+        payroll_rows = (
+            build_rows(expense_data_rows["payroll"], columns) if expense_data_rows else []
+        )
         expense_rows = (
             build_rows(expense_data_rows["expense"], columns) if expense_data_rows else []
         )
@@ -710,6 +818,52 @@ def _profit_loss_context(request):
     if kind in {"all", "expense"} and uncat_expense_cat:
         expense_rows = _ensure_uncat_row(expense_rows, uncat_expense_cat)
 
+    def group_rows_by_parent(rows):
+        if not rows:
+            return []
+        category_ids = {row["category_id"] for row in rows if row.get("category_id")}
+        categories = (
+            Category.objects.filter(id__in=category_ids)
+            .select_related("parent")
+        )
+        category_map = {cat.id: cat for cat in categories}
+        groups = {}
+        for row in rows:
+            category_id_key = row.get("category_id")
+            category = category_map.get(category_id_key)
+            parent = category.parent if category and category.parent_id else category
+            parent_id = parent.id if parent else category_id_key
+            group = groups.setdefault(
+                parent_id,
+                {
+                    "parent_id": parent_id,
+                    "parent_name": parent.name if parent else row["name"],
+                    "parent_category_id": parent.id if parent else category_id_key,
+                    "cells": None,
+                    "total": Decimal("0.00"),
+                    "rows": [],
+                },
+            )
+            group["rows"].append(row)
+            if group["cells"] is None:
+                group["cells"] = [
+                    {"value": cell["value"], "column": cell["column"]}
+                    for cell in row.get("cells", [])
+                ]
+            else:
+                for idx, cell in enumerate(row.get("cells", [])):
+                    group["cells"][idx]["value"] += cell["value"]
+            group["total"] += row.get("total", Decimal("0.00"))
+
+        grouped = list(groups.values())
+        grouped.sort(key=lambda g: g["parent_name"])
+        for group in grouped:
+            group["rows"].sort(key=lambda r: r["name"])
+            group["has_children"] = any(
+                row.get("category_id") != group["parent_category_id"] for row in group["rows"]
+            ) or len(group["rows"]) > 1
+        return grouped
+
     def build_column_totals(rows, column_count):
         totals = [Decimal("0.00") for _ in range(column_count)]
         for row in rows:
@@ -720,7 +874,8 @@ def _profit_loss_context(request):
     if columns:
         income_column_totals = build_column_totals(income_rows, len(columns))
         cogs_column_totals = build_column_totals(cogs_rows, len(columns))
-        expense_column_totals = build_column_totals(expense_rows, len(columns))
+        payroll_column_totals = build_column_totals(payroll_rows, len(columns))
+        expense_column_totals = build_column_totals(expense_rows + payroll_rows, len(columns))
         gross_profit_column_totals = [
             income_column_totals[idx] - cogs_column_totals[idx]
             for idx in range(len(columns))
@@ -732,10 +887,12 @@ def _profit_loss_context(request):
         net_income_column_totals = list(net_operating_income_column_totals)
 
     cogs_total = sum((row["total"] for row in cogs_rows), Decimal("0.00"))
-    expense_total = sum((row["total"] for row in expense_rows), Decimal("0.00"))
+    payroll_total = sum((row["total"] for row in payroll_rows), Decimal("0.00"))
+    expense_total = sum((row["total"] for row in expense_rows), Decimal("0.00")) + payroll_total
 
     income_total_display = income_total
     cogs_total_display = abs(cogs_total)
+    payroll_total_display = abs(payroll_total)
     expense_total_display = abs(expense_total)
     gross_profit = income_total - cogs_total
     gross_profit_display = abs(gross_profit)
@@ -746,6 +903,10 @@ def _profit_loss_context(request):
     net_income = net_operating_income
     net_income_display = abs(net_income)
     net_income_is_negative = net_income < 0
+    income_groups = group_rows_by_parent(income_rows)
+    cogs_groups = group_rows_by_parent(cogs_rows)
+    payroll_groups = group_rows_by_parent(payroll_rows)
+    expense_groups = group_rows_by_parent(expense_rows)
 
     accounts = Account.objects.filter(is_active=True).order_by("name")
     vendors = Vendor.objects.filter(is_active=True).order_by("name")
@@ -766,6 +927,7 @@ def _profit_loss_context(request):
 
     return {
         "filters": filters,
+        "query_string": request.GET.urlencode(),
         "report_ranges": REPORT_RANGE_OPTIONS,
         "display_by_options": DISPLAY_BY_OPTIONS,
         "accounts": accounts,
@@ -774,14 +936,22 @@ def _profit_loss_context(request):
         "income_rows": income_rows,
         "cogs_rows": cogs_rows,
         "expense_rows": expense_rows,
+        "payroll_rows": payroll_rows,
+        "income_groups": income_groups,
+        "cogs_groups": cogs_groups,
+        "payroll_groups": payroll_groups,
+        "expense_groups": expense_groups,
         "income_total": income_total,
         "cogs_total": cogs_total,
         "expense_total": expense_total,
+        "payroll_total": payroll_total,
         "income_total_display": income_total_display,
         "cogs_total_display": cogs_total_display,
+        "payroll_total_display": payroll_total_display,
         "expense_total_display": expense_total_display,
         "income_column_totals": income_column_totals,
         "cogs_column_totals": cogs_column_totals,
+        "payroll_column_totals": payroll_column_totals,
         "expense_column_totals": expense_column_totals,
         "gross_profit_column_totals": gross_profit_column_totals,
         "net_operating_income_column_totals": net_operating_income_column_totals,
@@ -804,6 +974,176 @@ def _profit_loss_context(request):
 def profit_loss_report(request):
     context = _profit_loss_context(request)
     return render(request, "fincore/reports/profit_loss.html", context)
+
+
+def _build_simple_xlsx(rows, sheet_name="Profit & Loss"):
+    import io
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    def col_letter(idx):
+        letter = ""
+        while idx > 0:
+            idx, rem = divmod(idx - 1, 26)
+            letter = chr(65 + rem) + letter
+        return letter
+
+    def cell_xml(col_idx, row_idx, value):
+        cell_ref = f"{col_letter(col_idx)}{row_idx}"
+        if value is None:
+            return f'<c r="{cell_ref}"/>'
+        if isinstance(value, (int, float)):
+            return f'<c r="{cell_ref}"><v>{value}</v></c>'
+        text = escape(str(value))
+        return (
+            f'<c r="{cell_ref}" t="inlineStr">'
+            f"<is><t>{text}</t></is></c>"
+        )
+
+    sheet_rows = []
+    for row_idx, row in enumerate(rows, start=1):
+        cells = "".join(cell_xml(col_idx, row_idx, value) for col_idx, value in enumerate(row, start=1))
+        sheet_rows.append(f'<row r="{row_idx}">{cells}</row>')
+
+    sheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        "<sheetData>"
+        + "".join(sheet_rows)
+        + "</sheetData></worksheet>"
+    )
+
+    workbook_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        '<sheets>'
+        f'<sheet name="{escape(sheet_name)}" sheetId="1" r:id="rId1"/>'
+        "</sheets></workbook>"
+    )
+
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        "</Types>"
+    )
+
+    root_rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        'Target="xl/workbook.xml"/>'
+        "</Relationships>"
+    )
+
+    workbook_rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+        'Target="worksheets/sheet1.xml"/>'
+        "</Relationships>"
+    )
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("_rels/.rels", root_rels)
+        zf.writestr("xl/workbook.xml", workbook_xml)
+        zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+        zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+    buffer.seek(0)
+    return buffer.read()
+
+
+def profit_loss_export_xlsx(request):
+    context = _profit_loss_context(request)
+    columns = context["columns"]
+    is_single_period = context["is_single_period"]
+
+    def normalize(value):
+        if value is None:
+            return 0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0
+
+    def row_values_from_cells(cells):
+        if is_single_period:
+            return [normalize(cells[0]["value"] if cells else 0)]
+        return [normalize(cell["value"]) for cell in cells]
+
+    def add_group_rows(label_prefix, groups):
+        for group in groups:
+            rows.append([f"{label_prefix}{group['parent_name']}"] + row_values_from_cells(group["cells"]) + ([] if is_single_period else [normalize(group["total"])]))
+            for row in group["rows"]:
+                if row["category_id"] == group["parent_category_id"]:
+                    continue
+                rows.append([f"  - {row['name']}"] + row_values_from_cells(row["cells"]) + ([] if is_single_period else [normalize(row["total"])]))
+
+    income_col_totals = [normalize(v) for v in context["income_column_totals"]]
+    cogs_col_totals = [normalize(v) for v in context["cogs_column_totals"]]
+    payroll_col_totals = [normalize(v) for v in context["payroll_column_totals"]]
+    expense_col_totals = [normalize(v) for v in context["expense_column_totals"]]
+    gross_profit_col_totals = [normalize(v) for v in context["gross_profit_column_totals"]]
+    net_operating_income_col_totals = [normalize(v) for v in context["net_operating_income_column_totals"]]
+    net_income_col_totals = [normalize(v) for v in context["net_income_column_totals"]]
+
+    header = ["Category"]
+    if is_single_period:
+        header.append("Amount")
+    else:
+        header.extend([col["label"] for col in columns])
+        header.append("Total")
+
+    rows = [header]
+
+    if context["income_groups"]:
+        rows.append(["Income"] + ([""] if is_single_period else [""] * (len(columns) + 1)))
+        add_group_rows("", context["income_groups"])
+        rows.append(["Total Income"] + (income_col_totals if not is_single_period else [normalize(context["income_total_display"])])
+                    + ([] if is_single_period else [normalize(context["income_total_display"])]))
+
+    if context["cogs_groups"]:
+        rows.append(["COGS (Cost of Goods Sold)"] + ([""] if is_single_period else [""] * (len(columns) + 1)))
+        add_group_rows("", context["cogs_groups"])
+        rows.append(["Total COGS"] + (cogs_col_totals if not is_single_period else [normalize(context["cogs_total_display"])])
+                    + ([] if is_single_period else [normalize(context["cogs_total_display"])]))
+
+    rows.append(["Gross Profit"] + (gross_profit_col_totals if not is_single_period else [normalize(context["gross_profit_display"])])
+                + ([] if is_single_period else [normalize(context["gross_profit_display"])]))
+
+    if context["payroll_groups"]:
+        rows.append(["Payroll"] + ([""] if is_single_period else [""] * (len(columns) + 1)))
+        add_group_rows("", context["payroll_groups"])
+
+    if context["expense_groups"]:
+        rows.append(["Expenses"] + ([""] if is_single_period else [""] * (len(columns) + 1)))
+        add_group_rows("", context["expense_groups"])
+        rows.append(["Total Expenses"] + (expense_col_totals if not is_single_period else [normalize(context["expense_total_display"])])
+                    + ([] if is_single_period else [normalize(context["expense_total_display"])]))
+
+    rows.append(["Net Operating Income"] + (net_operating_income_col_totals if not is_single_period else [normalize(context["net_operating_income_display"])])
+                + ([] if is_single_period else [normalize(context["net_operating_income_display"])]))
+    rows.append(["Net Income"] + (net_income_col_totals if not is_single_period else [normalize(context["net_income_display"])])
+                + ([] if is_single_period else [normalize(context["net_income_display"])]))
+
+    content = _build_simple_xlsx(rows)
+    filename = "profit-loss.xlsx"
+    response = HttpResponse(
+        content,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def profit_loss_content(request):

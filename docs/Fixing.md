@@ -252,6 +252,72 @@ Locations
 - `backend/fincore/templates/fincore/sales/transactions/detail.html`
 - `backend/fincore/migrations/0017_invoice_tax_rate_lock.py`
 
+## Profit & Loss: Hierarchy (Parent/Child) + Payroll Section
+
+Symptoms
+- Parent categories needed to be shown first with collapsible child rows.
+- Payroll needed its own section (separate from Expenses) and to be reported in P&L.
+- Parent totals should show only when collapsed to avoid confusion.
+
+Fix
+- Grouped P&L rows by parent category with expand/collapse per parent.
+- Added Payroll section as its own block (expense-kind).
+- Parent rows are not clickable when they have children.
+- Parent totals are hidden when a parent is expanded.
+
+Locations
+- `backend/fincore/views/transaction_views.py` (`_profit_loss_context`)
+- `backend/fincore/templates/fincore/reports/profit_loss_content.html`
+
+## Profit & Loss: Single-Period Compact Layout
+
+Symptoms
+- When only one period is present, the table looked stretched with excess whitespace.
+
+Fix
+- Server sets `is_single_period` when only one period column exists.
+- Table renders `Category | Amount` (no Total column).
+- Constrained widths via `colgroup` and `max-w-5xl` container.
+
+Location
+- `backend/fincore/views/transaction_views.py` (`_profit_loss_context`)
+- `backend/fincore/templates/fincore/reports/profit_loss_content.html`
+
+## Profit & Loss: Net Income Footer Alignment
+
+Symptoms
+- Net Income footer values were not aligned with the main table columns.
+
+Fix
+- Added matching `colgroup` and `table-fixed` to footer table.
+
+Location
+- `backend/fincore/templates/fincore/reports/profit_loss_content.html`
+
+## Profit & Loss: Child Indent Alignment
+
+Symptoms
+- Child rows (e.g., Grubhub) were not indented enough compared to parent rows.
+
+Fix
+- Increased child padding to `pl-16`.
+- Standardized bullet + label alignment with `inline-flex` wrappers.
+
+Location
+- `backend/fincore/templates/fincore/reports/profit_loss_content.html`
+
+## Profit & Loss: Print Layout (Hide Shell)
+
+Symptoms
+- Print output included app header, sidebar, and footer.
+
+Fix
+- Added print-only CSS to hide header/sidebar/footer and filter controls.
+- Forced report container to render full content without scroll clipping.
+
+Location
+- `backend/fincore/templates/fincore/reports/profit_loss.html`
+
 ## Invoice Matching: Partial Payment Support & Multi-Match
 
 Problem

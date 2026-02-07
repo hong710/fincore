@@ -90,22 +90,17 @@
       </thead>
       <tbody class="flex-1 overflow-y-auto divide-y divide-slate-200 min-h-0">
         {% if page_obj.object_list %}
-          {% for txn in page_obj.object_list %}
+          {% for row in page_obj.object_list %}
             <tr class="flex w-full hover:bg-slate-50">
-              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-600 flex-1">{{ txn.date|date:"M j, Y" }}</td>
-              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700 flex-1">{{ txn.vendor.name|default:"-" }}</td>
-              <td class="px-4 py-2 text-xs text-slate-800 flex-1 overflow-hidden" title="{{ txn.description|default:'' }}">{{ txn.description|default:"-"|truncatewords:12 }}</td>
-              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700 flex-1">{{ txn.account.name }}</td>
-              <td class="px-4 py-2 whitespace-nowrap text-right text-xs flex-1 {% if txn.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
-                {{ txn.amount }}
+              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-600 flex-1">{{ row.date|date:"M j, Y" }}</td>
+              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700 flex-1">{{ row.vendor_name|default:"-" }}</td>
+              <td class="px-4 py-2 text-xs text-slate-800 flex-1 overflow-hidden" title="{{ row.description|default:'' }}">{{ row.description|default:"-"|truncatewords:12 }}</td>
+              <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-700 flex-1">{{ row.account_name }}</td>
+              <td class="px-4 py-2 whitespace-nowrap text-right text-xs flex-1 {% if row.amount < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                {{ row.amount|floatformat:2 }}
               </td>
               <td class="px-4 py-2 whitespace-nowrap text-right text-xs flex-1">
-                <a
-                  class="text-indigo-600 hover:text-indigo-700"
-                  href="{% url 'fincore:transaction_list' %}?account_id={{ txn.account_id }}&category={{ category.id }}&date_range={{ goto_date_range }}{% if goto_date_from %}&date_from={{ goto_date_from }}{% endif %}{% if goto_date_to %}&date_to={{ goto_date_to }}{% endif %}"
-                >
-                  View
-                </a>
+                <a class="text-indigo-600 hover:text-indigo-700" href="{{ row.goto_url }}">View</a>
               </td>
             </tr>
           {% endfor %}

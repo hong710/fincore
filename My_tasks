@@ -1,4 +1,15 @@
-Next will work on the 
-Sale Get pay
-Expense & Bills system
-Report
+
+
+----New Feature-----
+Invoice issue: the payment more than the invoice balance the is no way to break it the amount 
+Fix: match all the transaction to the customer balance then use the balance to pay to invoice
+
+----BUG-----
+Rollback has issue with the tnx attach to the invoice roll back with error
+
+
+----DONE------
+Link follow up from PL is not show the the entry if the entry create from the invoice
+The invoice need to show the expense as well for user to add - number
+Chart Of account has sub category
+add the payroll as the kind in the category

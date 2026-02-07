@@ -1,5 +1,5 @@
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, When
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -8,7 +8,14 @@ from fincore.models import Category, Transaction
 
 
 def category_list(request):
-    return render(request, "fincore/categories/index.html")
+    parent_options = list(
+        Category.objects.filter(parent__isnull=True).order_by("kind", "name")
+    )
+    return render(
+        request,
+        "fincore/categories/index.html",
+        {"parent_options": parent_options},
+    )
 
 
 def category_create(request):
@@ -17,16 +24,26 @@ def category_create(request):
 
     name = (request.POST.get("name") or "").strip()
     kind = (request.POST.get("kind") or "").strip()
+    parent_id = (request.POST.get("parent_id") or "").strip()
     description = (request.POST.get("description") or "").strip()
     is_active = request.POST.get("is_active") == "on"
 
     errors = []
+    parent = None
+    if parent_id:
+        try:
+            parent = Category.objects.get(pk=int(parent_id))
+        except (Category.DoesNotExist, ValueError, TypeError):
+            errors.append("Parent category is invalid.")
+            parent = None
     if not name:
         errors.append("Category name is required.")
     if kind not in dict(Category.KIND_CHOICES):
         errors.append("Category kind is required.")
     if Category.objects.filter(name=name, kind=kind).exists():
         errors.append("Category name must be unique within a kind.")
+    if parent and parent.kind != kind:
+        errors.append("Parent category kind must match.")
     if errors:
         return render(
             request,
@@ -40,6 +57,7 @@ def category_create(request):
         kind=kind,
         description=description,
         is_active=is_active,
+        parent=parent,
     )
 
     resp = HttpResponse(status=204)
@@ -64,7 +82,44 @@ def category_table(request):
     except (TypeError, ValueError):
         page_size = 25
 
-    qs = Category.objects.annotate(transaction_count=Count("transactions"))
+    qs = Category.objects.select_related("parent").annotate(
+        transaction_count=Count("transactions", distinct=True),
+        invoice_item_count=Count("invoice_items", distinct=True),
+        bill_item_count=Count("bill_items", distinct=True),
+        transaction_unmatched_count=Count(
+            "transactions",
+            filter=Q(transactions__invoice_payments__isnull=True),
+            distinct=True,
+        ),
+        transaction_unmatched_bill_count=Count(
+            "transactions",
+            filter=Q(transactions__bill_payments__isnull=True),
+            distinct=True,
+        ),
+    ).annotate(
+        used_count=Case(
+            When(
+                kind="income",
+                then=Count("invoice_items", distinct=True)
+                + Count(
+                    "transactions",
+                    filter=Q(transactions__invoice_payments__isnull=True),
+                    distinct=True,
+                ),
+            ),
+            When(
+                kind__in=["expense", "payroll"],
+                then=Count("bill_items", distinct=True)
+                + Count(
+                    "transactions",
+                    filter=Q(transactions__bill_payments__isnull=True),
+                    distinct=True,
+                ),
+            ),
+            default=Count("transactions", distinct=True) + Count("invoice_items", distinct=True),
+            output_field=IntegerField(),
+        )
+    )
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
     if selected_kinds:
@@ -76,7 +131,7 @@ def category_table(request):
             qs = qs.filter(is_active__in=active_values)
     elif active_scope == "active":
         qs = qs.filter(is_active=True)
-    qs = qs.order_by("kind", "name")
+    qs = qs.order_by("kind", "parent__name", "name")
 
     options_base = Category.objects.all()
     if search:
@@ -109,9 +164,17 @@ def category_table(request):
         if value not in active_options:
             active_options.append(value)
 
-    paginator = Paginator(qs, page_size)
+    parents_qs = qs.filter(parent__isnull=True)
+    paginator = Paginator(parents_qs, page_size)
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
+    parent_ids = [cat.id for cat in page_obj.object_list]
+    children = list(qs.filter(parent_id__in=parent_ids).order_by("name"))
+    children_by_parent = {}
+    for child in children:
+        children_by_parent.setdefault(child.parent_id, []).append(child)
+    for parent in page_obj.object_list:
+        parent.child_rows = children_by_parent.get(parent.id, [])
 
     context = {
         "page_obj": page_obj,
@@ -119,6 +182,7 @@ def category_table(request):
         "page_size": page_size,
         "page_sizes": [25, 50, 100],
         "search": search,
+        "children_by_parent": children_by_parent,
         "filter_payload": {
             "kind": selected_kinds,
             "active": selected_active,
@@ -147,12 +211,20 @@ def category_update(request):
 
     raw_name = (request.POST.get("name") or "").strip()
     raw_kind = (request.POST.get("kind") or "").strip()
+    parent_id = (request.POST.get("parent_id") or "").strip()
     description = (request.POST.get("description") or "").strip()
     is_active = request.POST.get("is_active") == "on"
 
     errors = []
     name = raw_name
     kind = raw_kind
+    parent = None
+    if parent_id:
+        try:
+            parent = Category.objects.get(pk=int(parent_id))
+        except (Category.DoesNotExist, ValueError, TypeError):
+            errors.append("Parent category is invalid.")
+            parent = None
     if category.is_protected:
         if not name:
             name = category.name
@@ -169,6 +241,14 @@ def category_update(request):
             errors.append("Category kind is required.")
     if Category.objects.filter(name=name, kind=kind).exclude(pk=category.pk).exists():
         errors.append("Category name must be unique within a kind.")
+    if parent and parent.id == category.id:
+        errors.append("Category cannot be its own parent.")
+    if parent and parent.kind != kind:
+        errors.append("Parent category kind must match.")
+    if category.is_protected:
+        desired_parent_id = parent.id if parent else category.parent_id
+        if category.parent_id != desired_parent_id:
+            errors.append("Protected categories cannot change parent.")
     if errors:
         return render(
             request,
@@ -180,6 +260,7 @@ def category_update(request):
     category.name = name
     category.kind = kind
     category.description = description
+    category.parent = parent
 
     category.is_active = is_active
     category.save()

@@ -302,14 +302,14 @@
           <td class="px-4 py-0.5 whitespace-nowrap" title="{{ txn.description|default:"" }}">{{ txn.description|default:""|truncatewords:15 }}</td>
           <td class="px-4 py-0.5 whitespace-nowrap">
             {% with invoice_label=txn.invoice_display_label %}
-              <span>{{ txn.category.name|default:"-" }}</span>
               {% if invoice_label %}
-                <span class="text-slate-400">·</span>
                 {% if txn.invoice_display_link %}
-                  <a class="text-[10px] text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:sales_invoice_detail' txn.invoice_display_link %}">{{ invoice_label }}</a>
+                  <a class="text-indigo-600 hover:text-indigo-700" href="{% url 'fincore:sales_invoice_detail' txn.invoice_display_link %}">Invoice: {{ invoice_label }}</a>
                 {% else %}
-                  <span class="text-[10px] text-slate-500">{{ invoice_label }}</span>
+                  <span class="text-slate-500">Invoice: {{ invoice_label }}</span>
                 {% endif %}
+              {% else %}
+                <span>{{ txn.category.name|default:"-" }}</span>
               {% endif %}
             {% endwith %}
           </td>
