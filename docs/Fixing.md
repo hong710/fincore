@@ -198,6 +198,23 @@ Changes
 - Updated `import_commit` to assign uncategorized categories.
 - Updated P&L context builder to always show uncategorized rows.
 
+## Bills: Suggested Matches 500 Error (Invalid `abs` Filter)
+
+Symptoms
+- Bills match modal stuck on “Loading matches…”.
+- Server error: `TemplateSyntaxError: Invalid filter: 'abs'` in `bills/transactions/match_list.html`.
+
+Root cause
+- The template used the `abs` filter, which is not a built-in Django filter in this project.
+
+Fix
+- Compute `abs_amount` in `bill_views._build_bill_match_context` for all match candidates.
+- Render `txn.abs_amount` in the template for amounts and auto-fill values.
+
+Location
+- `backend/fincore/views/bill_views.py`
+- `backend/fincore/templates/fincore/bills/transactions/match_list.html`
+
 Locations
 - `backend/fincore/migrations/0016_uncategorized_categories.py`
 - `backend/fincore/views/import_views.py` (import_commit)

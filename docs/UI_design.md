@@ -41,13 +41,19 @@ This document captures the visual foundations we use across Storybook and Django
 - HTMX will handle partial updates; keep templates HTML-first and server-driven.
 
 ## Reports (Profit & Loss)
-- Layout: title + filter bar (report period, account, vendor, category, type) with a single `Apply` CTA.
+- Layout: title + filter bar (report period, account, vendor, category, type) that auto-submits on change (no `Apply` CTA).
 - Table: summary by category with section headers (Income, COGS, Expenses) and totals; `Net Income` highlighted in `indigo-50`.
 - Amounts: income in `emerald-600`, expenses/COGS in `rose-600`, net income color based on sign.
 - Table rows use `hover:bg-slate-50` for data rows; section/total rows remain static.
 
 ## Sales Transactions (Invoices)
-- Layout: title + filter bar (report period, account, customer, status, min/max total, search) with `Apply` CTA.
+- Layout: title + filter bar (report period, account, customer, status, min/max total, search) that auto-submits on change (no `Apply` CTA).
 - Table: QuickBooks-like summary with columns for invoice number, date, customer, total, status, due date, account, actions.
 - Actions: `Match` opens a modal with suggested transactions; no link is saved yet.
 - Create invoice page: header fields + line items table (category, description, amount, tax), totals calculated on save.
+
+## Bills & Receipts
+- Layout: title + filter bar (report period, account, vendor, status, min/max total, search) that auto-submits on change.
+- Table: bills list with columns for bill number, date, vendor, total, status, account, actions.
+- Actions: `Match` opens suggested expense transactions; matching is manual.
+- Create/edit bill: header fields + line items table (category, description, amount), totals calculated on save.

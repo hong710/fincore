@@ -19,20 +19,25 @@
 1) Account
    - Where money lives. No stored balance column.
 2) Category
-   - kind: income | expense.
-   - Transfers never reference categories.
+   - kind: income | expense | transfer | opening | withdraw | equity | liability | cogs.
+   - Transfers use a transfer_group; categories are required for transfers in the UI but excluded from P&L.
 3) Transaction (core table)
-   - date, account (FK), amount (signed), kind (income | expense | transfer), category (nullable), transfer_group (nullable), description, source (manual | csv), created_at.
+   - date, account (FK), amount (signed), kind (income | expense | transfer | opening | withdraw | equity | liability | cogs),
+     category (nullable), transfer_group (nullable), vendor (optional), description, source (manual | csv), created_at.
    - Rules:
      - income → amount > 0, category required.
      - expense → amount < 0, category required.
-     - transfer → category null, transfer_group required.
+     - transfer → transfer_group required (paired).
 4) TransferGroup
    - Groups paired transfer transactions; sum per group must be zero.
 5) ImportBatch
    - Tracks CSV uploads and status: pending | validated | imported | failed.
 6) ImportRow
    - Staged CSV rows with mapped fields and validation errors.
+7) Invoice + InvoiceItem + InvoicePayment
+   - Revenue is defined by InvoiceItems; payments link to Transactions.
+8) Bill + BillItem + BillPayment
+   - Expense bills link to outgoing Transactions via BillPayment; no auto-matching.
 
 ## Transfer Rules (must enforce)
 - Transfers are paired with the same transfer_group.

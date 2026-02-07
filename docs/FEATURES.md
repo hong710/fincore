@@ -155,6 +155,34 @@ This prevents tax manipulation after payment is recorded.
 
 ---
 
+## Bills & Receipts (Vendor Bills)
+
+**Added:** February 2026  
+**Status:** ✅ Implemented
+
+### Purpose
+Track vendor bills and match them to outgoing expense transactions (negative amounts), mirroring the Sales workflow but for expenses.
+
+### Key Behaviors
+- Bills are created manually with line items (Category, Description, Amount, Line Total).
+- Matching links bills to expense transactions; no auto-matching.
+- Matching supports partial payments and multiple transactions.
+- Filters auto-apply on selection (no Apply button); server-selected values persist on reload.
+
+### Files Modified
+- `backend/fincore/models/bill.py`
+- `backend/fincore/models/bill_item.py`
+- `backend/fincore/models/bill_payment.py`
+- `backend/fincore/views/bill_views.py`
+- `backend/fincore/templates/fincore/bills/transactions/index.html`
+- `backend/fincore/templates/fincore/bills/transactions/new.html`
+- `backend/fincore/templates/fincore/bills/transactions/edit.html`
+- `backend/fincore/templates/fincore/bills/transactions/detail.html`
+- `backend/fincore/templates/fincore/bills/transactions/match_list.html`
+- `backend/fincore/templates/fincore/base.html` (sidebar link)
+
+---
+
 ## UI/UX Improvements
 
 ### P&L: Page Fill & Sticky Net Income Footer

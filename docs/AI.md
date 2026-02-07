@@ -1,4 +1,4 @@
-Always read STACK.md
+Always read ../README.md
 And all the docs in docs folder
 using this as the guidance to design fixing bug and redoc
 when you fix the bug you will add to fixing.md to buid the database for lookup later or use as the referent

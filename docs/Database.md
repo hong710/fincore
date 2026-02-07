@@ -11,6 +11,9 @@
   - **Tax locking**: `tax_rate` and `tax_exclude` cannot be changed when status is `paid` or `partially_paid`.
 - **InvoiceItem**: Line items for an invoice. Has `category`, `amount`, `tax`, `total`, `tax_exempt`, optional `description`.
 - **InvoicePayment**: Link between an invoice and a cash transaction. Supports partial payments; stores matched amount and timestamp.
+- **Bill**: Expense document for matching outgoing transactions later. Has `number`, `vendor` (Vendor, payee), `account`, `date`, `status`, `subtotal`, `total`, `notes`.
+- **BillItem**: Line items for a bill. Has `category`, `amount`, `total`, optional `description`.
+- **BillPayment**: Link between a bill and a cash transaction. Supports partial payments; stores matched amount and timestamp.
 - **Transaction**: Core single-entry record (date, account, amount, kind, vendor?, payee?, category?, transfer_group?, import_batch?, is_imported, is_locked, description, source, created_at).
   - income  → amount > 0, category required
   - expense → amount < 0, category required
@@ -46,6 +49,10 @@ Vendor (1) ───────< Invoice (customer)
 Account (1) ──────< Invoice
 Invoice (1) ──────< InvoiceItem >── (1) Category
 Invoice (1) ──────< InvoicePayment >── (1) Transaction
+Vendor (1) ───────< Bill (vendor)
+Account (1) ──────< Bill
+Bill (1) ─────────< BillItem >──────── (1) Category
+Bill (1) ─────────< BillPayment >───── (1) Transaction
 ```
 Details:
 - Transaction.account → Account (FK, PROTECT)
@@ -78,6 +85,18 @@ Details:
   - id PK, invoice_id FK (PROTECT), transaction_id FK (PROTECT)
   - amount, matched_at
   - unique_together: (invoice_id, transaction_id)
+- **bill**
+  - id PK, number (unique), vendor_id FK (Vendor, payee), account_id FK (Account)
+  - date, status (`draft|received|partially_paid|paid|void`)
+  - subtotal, total (computed from items on save)
+  - notes?, created_at
+- **bill_item**
+  - id PK, bill_id FK (CASCADE), category_id FK (PROTECT)
+  - amount, total, description?, created_at
+- **bill_payment**
+  - id PK, bill_id FK (PROTECT), transaction_id FK (PROTECT)
+  - amount, matched_at
+  - unique_together: (bill_id, transaction_id)
 - **transfer_group**
   - id PK, reference (unique), created_at
 - **transaction**
